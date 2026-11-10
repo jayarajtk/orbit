@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:orbit/app/router.dart';
+import 'package:orbit/core/widgets/fill_or_scroll.dart';
 import 'package:orbit/l10n/app_localizations.dart';
 
 /// W1: first screen for signed-out users. Leads with the privacy promise.
@@ -14,7 +15,7 @@ class WelcomeScreen extends StatelessWidget {
     final theme = Theme.of(context);
     return Scaffold(
       body: SafeArea(
-        child: Padding(
+        child: FillOrScroll(
           padding: const EdgeInsetsDirectional.fromSTEB(24, 24, 24, 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,

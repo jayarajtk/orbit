@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:orbit/app/router.dart';
+import 'package:orbit/core/widgets/fill_or_scroll.dart';
 import 'package:orbit/l10n/app_localizations.dart';
 
 /// W2: choose an identity provider.
@@ -20,7 +21,7 @@ class SignInScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(),
       body: SafeArea(
-        child: Padding(
+        child: FillOrScroll(
           padding: const EdgeInsetsDirectional.fromSTEB(24, 8, 24, 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
