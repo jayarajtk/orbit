@@ -1,0 +1,22 @@
+{
+  "@@locale": "en",
+  "appName": "orbit",
+  "welcomeHeadline": "Meet people nearby.",
+  "welcomeTagline": "Fast. Private. No ads — ever.",
+  "welcomePrivacyPromise": "Your exact location is never stored — only a rounded area.",
+  "welcomeGetStarted": "Get started",
+  "welcomeAgeNotice": "18+ only",
+  "signInTitle": "Sign in to Orbit",
+  "signInSubtitle": "Pick any. You can link more later.",
+  "signInWithApple": "Continue with Apple",
+  "signInWithGoogle": "Continue with Google",
+  "signInWithPhone": "Continue with phone number",
+  "signInNoPosting": "We never post anything or show Orbit on your other accounts.",
+  "backTooltip": "Back",
+  "tabNearby": "Nearby",
+  "tabInbox": "Inbox",
+  "tabMe": "Me",
+  "nearbyEmpty": "No one nearby yet — try widening your filters.",
+  "inboxEmpty": "Say hi to someone nearby.",
+  "meTitle": "Me"
+}
