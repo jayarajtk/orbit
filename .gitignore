@@ -1,0 +1,11 @@
+# OS and editors
+.DS_Store
+.idea/
+.vscode/
+*.iml
+
+# Secrets and local environment
+.env
+.env.*
+
+# backend/ and mobile/ carry their own .gitignore files for build outputs.
