@@ -1,0 +1,28 @@
+{
+  "realm": "orbit",
+  "enabled": true,
+  "sslRequired": "none",
+  "accessTokenLifespan": 900,
+  "clients": [
+    {
+      "clientId": "orbit-mobile",
+      "name": "Orbit mobile app (local dev)",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["com.orbit.orbit:/oauthredirect"],
+      "attributes": { "pkce.code.challenge.method": "S256" }
+    }
+  ],
+  "users": [
+    {
+      "username": "dev-user",
+      "enabled": true,
+      "email": "dev-user@orbit.test",
+      "emailVerified": true,
+      "firstName": "Dev",
+      "lastName": "User",
+      "credentials": [{ "type": "password", "value": "2RtOjFhcqw0yO5e3NueR-dog", "temporary": false }]
+    }
+  ]
+}

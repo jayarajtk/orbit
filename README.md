@@ -37,11 +37,19 @@ Prerequisites: JDK 21, Docker (for Testcontainers), and Flutter 3.41.
 cd backend && ./gradlew build
 ```
 
-Run the API locally with throwaway containers. It needs an OIDC issuer for token validation:
+Run the API locally on port 8080. No setup is needed: it starts throwaway PostGIS, Redis and **Keycloak** containers. Keycloak is a local OIDC issuer on port 8180, with realm `orbit`, public client `orbit-mobile` and test user `dev-user`:
 
 ```bash
-cd backend && SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI=<your issuer> ./gradlew bootTestRun
+cd backend && ./gradlew bootTestRun
 ```
+
+Get a token for `dev-user` and call the API:
+
+```bash
+TOKEN=$(backend/scripts/dev-token.sh) && curl -H "Authorization: Bearer $TOKEN" localhost:8080/api/v1/me/profile
+```
+
+The local realm lives in `backend/src/test/resources/keycloak/orbit-realm.json`. It's for development only: the test password is a fixture, and the password grant used by `dev-token.sh` is enabled only for curl testing. The mobile app will use Authorization Code + PKCE.
 
 Deployed environments supply `SPRING_DATASOURCE_*`, `SPRING_DATA_REDIS_URL` and `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_*` as environment variables. See `backend/src/main/resources/application.yml`.
 
