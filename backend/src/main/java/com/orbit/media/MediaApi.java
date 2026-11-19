@@ -27,6 +27,16 @@ public interface MediaApi {
   boolean remove(UUID mediaId);
 
   /**
+   * Deletes media for real: the stored objects (original and thumbnail) first, then the row, so a
+   * failed object delete leaves the row for a retry. Media held as evidence is kept. Returns
+   * whether anything was deleted; calling it again is harmless.
+   */
+  boolean purge(UUID mediaId);
+
+  /** Keeps media from ever being purged, because it is evidence in a report. Idempotent. */
+  void holdAsEvidence(UUID mediaId);
+
+  /**
    * The name of {@code ownerId}'s album {@code albumId}.
    *
    * @throws MediaUnavailableException if there is no such album of theirs

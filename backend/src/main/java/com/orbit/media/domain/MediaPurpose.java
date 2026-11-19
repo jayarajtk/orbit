@@ -9,6 +9,7 @@ public enum MediaPurpose {
   PROFILE_PHOTO(Kind.PHOTO, Limits.PHOTO_BYTES, Limits.PHOTO_TYPES, null),
   ALBUM_PHOTO(Kind.PHOTO, Limits.PHOTO_BYTES, Limits.PHOTO_TYPES, null),
   CHAT_PHOTO(Kind.PHOTO, Limits.PHOTO_BYTES, Limits.PHOTO_TYPES, null),
+  STATUS_PHOTO(Kind.PHOTO, Limits.PHOTO_BYTES, Limits.PHOTO_TYPES, null),
   CHAT_VIDEO(
       Kind.VIDEO,
       50L * 1024 * 1024,

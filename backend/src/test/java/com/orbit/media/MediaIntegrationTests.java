@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 import com.orbit.MutableClock;
 import com.orbit.TestcontainersConfiguration;
 import com.orbit.media.application.MediaScanner;
+import com.orbit.media.application.ObjectStorage;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -20,6 +21,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,6 +63,8 @@ class MediaIntegrationTests {
   @Autowired JdbcClient jdbc;
   @Autowired MutableClock clock;
   @Autowired AtomicReference<MediaScanner.Verdict> verdict;
+  @Autowired MediaApi mediaApi;
+  @Autowired ObjectStorage storage;
 
   private final HttpClient http = HttpClient.newHttpClient();
   private final Map<String, String> ids = new HashMap<>();
@@ -223,6 +227,91 @@ class MediaIntegrationTests {
 
   private static boolean contains(byte[] haystack, String needle) {
     return new String(haystack, StandardCharsets.ISO_8859_1).contains(needle);
+  }
+
+  // --- status photos, purge and evidence hold ---------------------------------------------------
+
+  @Nested
+  class StatusMedia {
+
+    private String key(String column, String mediaId) {
+      return jdbc.sql("SELECT " + column + " FROM media WHERE id = :id")
+          .param("id", UUID.fromString(mediaId))
+          .query(String.class)
+          .single();
+    }
+
+    private boolean stored(String key) {
+      return storage.size(key).isPresent();
+    }
+
+    @Test
+    void statusPhotoUploadIsAccepted() throws Exception {
+      String id = photo("alice", "STATUS_PHOTO");
+
+      get("alice", "/api/v1/media/" + id)
+          .expectStatus()
+          .isOk()
+          .expectBody()
+          .jsonPath("$.purpose")
+          .isEqualTo("STATUS_PHOTO");
+    }
+
+    @Test
+    void purgeDeletesObjectsAndRow() throws Exception {
+      String id = photo("alice", "STATUS_PHOTO");
+      UUID mediaId = UUID.fromString(id);
+      String full = key("storage_key", id);
+      String thumb = key("thumb_key", id);
+      assertThat(stored(full)).isTrue();
+      assertThat(stored(thumb)).isTrue();
+
+      assertThat(mediaApi.purge(mediaId)).isTrue();
+
+      assertThat(stored(full)).isFalse();
+      assertThat(stored(thumb)).isFalse();
+      assertThat(mediaApi.links(List.of(mediaId))).isEmpty();
+      assertThat(
+              jdbc.sql("SELECT count(*) FROM media WHERE id = :id")
+                  .param("id", mediaId)
+                  .query(Long.class)
+                  .single())
+          .isZero();
+    }
+
+    @Test
+    void purgeSkipsHeldMedia() throws Exception {
+      String id = photo("alice", "STATUS_PHOTO");
+      UUID mediaId = UUID.fromString(id);
+      String full = key("storage_key", id);
+
+      mediaApi.holdAsEvidence(mediaId);
+      mediaApi.holdAsEvidence(mediaId);
+
+      assertThat(mediaApi.purge(mediaId)).isFalse();
+      assertThat(stored(full)).isTrue();
+      assertThat(mediaApi.links(List.of(mediaId))).containsKey(mediaId);
+    }
+
+    @Test
+    void purgeIsIdempotent() throws Exception {
+      String id = photo("alice", "STATUS_PHOTO");
+      UUID mediaId = UUID.fromString(id);
+
+      assertThat(mediaApi.purge(mediaId)).isTrue();
+      assertThat(mediaApi.purge(mediaId)).isFalse();
+    }
+
+    @Test
+    void purgeCompletesWhenAnObjectIsAlreadyGone() throws Exception {
+      String id = photo("alice", "STATUS_PHOTO");
+      UUID mediaId = UUID.fromString(id);
+      String full = key("storage_key", id);
+      storage.delete(key("thumb_key", id));
+
+      assertThat(mediaApi.purge(mediaId)).isTrue();
+      assertThat(stored(full)).isFalse();
+    }
   }
 
   // --- uploads -------------------------------------------------------------------------------

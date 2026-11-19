@@ -246,6 +246,25 @@ public class MediaService implements MediaApi {
   }
 
   @Override
+  public boolean purge(UUID mediaId) {
+    MediaRow row = store.find(mediaId).orElse(null);
+    if (row == null || row.evidenceHold()) {
+      return false;
+    }
+    // Objects first: if a delete fails the row stays, so a retry still finds what to delete.
+    storage.delete(row.storageKey());
+    if (row.thumbKey() != null) {
+      storage.delete(row.thumbKey());
+    }
+    return store.deleteUnlessHeld(mediaId);
+  }
+
+  @Override
+  public void holdAsEvidence(UUID mediaId) {
+    store.markHeld(mediaId, clock.instant());
+  }
+
+  @Override
   public String requireOwnAlbum(UUID ownerId, UUID albumId) {
     return albums
         .find(albumId)

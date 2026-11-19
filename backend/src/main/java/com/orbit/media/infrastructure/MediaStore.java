@@ -20,7 +20,7 @@ public class MediaStore {
 
   private static final String COLUMNS =
       "id, owner_id, purpose, kind, status, content_type, size_bytes, storage_key, thumb_key,"
-          + " width, height, duration_ms, private_only, created_at";
+          + " width, height, duration_ms, private_only, evidence_hold, created_at";
 
   private final JdbcClient jdbc;
 
@@ -135,6 +135,24 @@ public class MediaStore {
         == 1;
   }
 
+  /** Keeps the row from being deleted by {@link #deleteUnlessHeld}. Safe to repeat. */
+  public void markHeld(UUID id, Instant now) {
+    jdbc.sql(
+            "UPDATE media SET evidence_hold = TRUE, updated_at = :now"
+                + " WHERE id = :id AND NOT evidence_hold")
+        .param("id", id)
+        .param("now", utc(now))
+        .update();
+  }
+
+  /** Deletes the row unless it is held as evidence; returns whether it was deleted. */
+  public boolean deleteUnlessHeld(UUID id) {
+    return jdbc.sql("DELETE FROM media WHERE id = :id AND NOT evidence_hold")
+            .param("id", id)
+            .update()
+        == 1;
+  }
+
   private static OffsetDateTime utc(Instant instant) {
     return instant.atOffset(ZoneOffset.UTC);
   }
@@ -154,6 +172,7 @@ public class MediaStore {
         rs.getObject("height", Integer.class),
         rs.getObject("duration_ms", Integer.class),
         rs.getBoolean("private_only"),
+        rs.getBoolean("evidence_hold"),
         rs.getObject("created_at", OffsetDateTime.class).toInstant());
   }
 
@@ -181,5 +200,6 @@ public class MediaStore {
       Integer height,
       Integer durationMs,
       boolean privateOnly,
+      boolean evidenceHold,
       Instant createdAt) {}
 }

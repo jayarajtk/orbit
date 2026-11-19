@@ -13,7 +13,10 @@ enum MediaPurpose {
   chatVideo('CHAT_VIDEO'),
 
   /// A voice note.
-  voiceNote('VOICE_NOTE')
+  voiceNote('VOICE_NOTE'),
+
+  /// A photo posted as a 24-hour status.
+  statusPhoto('STATUS_PHOTO')
   ;
 
   const MediaPurpose(this.apiValue);
@@ -23,7 +26,10 @@ enum MediaPurpose {
 
   /// Whether this purpose takes a photo (rather than video or audio).
   bool get isPhoto =>
-      this == profilePhoto || this == albumPhoto || this == chatPhoto;
+      this == profilePhoto ||
+      this == albumPhoto ||
+      this == chatPhoto ||
+      this == statusPhoto;
 }
 
 /// Short-lived links to a media object. Fetch fresh ones after [expiresAt].
