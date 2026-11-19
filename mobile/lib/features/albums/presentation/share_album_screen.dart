@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:orbit/core/clock.dart';
 import 'package:orbit/core/network/api_client.dart';
+import 'package:orbit/core/widgets/empty_state.dart';
 import 'package:orbit/features/albums/data/album_repository.dart';
 import 'package:orbit/features/albums/domain/album.dart';
 import 'package:orbit/features/albums/presentation/albums_controller.dart';
+import 'package:orbit/features/albums/presentation/my_albums_screen.dart';
 import 'package:orbit/features/chat/presentation/chat_controller.dart';
 import 'package:orbit/features/discovery/presentation/discovery_providers.dart';
 import 'package:orbit/l10n/app_localizations.dart';
@@ -59,6 +61,19 @@ class _ShareAlbumScreenState extends ConsumerState<ShareAlbumScreen> {
     router.pop();
   }
 
+  Future<void> _createAlbum() async {
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final name = await askAlbumName(context);
+    if (name == null || name.trim().isEmpty) return;
+    try {
+      final id = await ref.read(albumsProvider.notifier).create(name);
+      if (mounted) setState(() => _albumId = id);
+    } on ApiException {
+      messenger.showSnackBar(SnackBar(content: Text(l10n.actionFailed)));
+    }
+  }
+
   Future<void> _revoke(String albumId) async {
     final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
@@ -86,6 +101,20 @@ class _ShareAlbumScreenState extends ConsumerState<ShareAlbumScreen> {
         if (album.activeGrants(now).any((g) => g.profileId == widget.profileId))
           album,
     ];
+
+    if (albums.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: Text(l10n.shareAlbumTitle(name))),
+        body: EmptyState(
+          icon: Icons.photo_library_outlined,
+          message: l10n.shareAlbumEmpty,
+          action: FilledButton(
+            onPressed: () => unawaited(_createAlbum()),
+            child: Text(l10n.createAlbum),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.shareAlbumTitle(name))),

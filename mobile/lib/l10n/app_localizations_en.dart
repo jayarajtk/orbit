@@ -506,6 +506,13 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get shareAlbumEmpty =>
+      'You don\'t have any albums yet. Create one to share it.';
+
+  @override
+  String get createAlbum => 'Create album';
+
+  @override
   String albumPhotos(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

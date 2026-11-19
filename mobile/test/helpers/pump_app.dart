@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbit/app/app.dart';
 import 'package:orbit/core/clock.dart';
@@ -18,10 +19,12 @@ const testReplyAfter = Duration(milliseconds: 100);
 const testTypingFor = Duration(milliseconds: 100);
 
 /// Pumps the app on a phone-sized screen with a fixed clock, no profile
-/// latency and fast dummy replies. [profiles] replaces the dummy repository.
+/// latency and fast dummy replies. [profiles] replaces the dummy repository;
+/// [overrides] are added after the defaults.
 Future<void> pumpOrbit(
   WidgetTester tester, {
   ProfileRepository? profiles,
+  List<Override> overrides = const [],
 }) async {
   tester.view.physicalSize = const Size(1170, 2532);
   tester.view.devicePixelRatio = 3;
@@ -40,6 +43,7 @@ Future<void> pumpOrbit(
             typingFor: testTypingFor,
           ),
         ),
+        ...overrides,
       ],
       child: const OrbitApp(),
     ),

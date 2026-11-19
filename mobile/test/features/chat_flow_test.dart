@@ -1,7 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:orbit/features/albums/data/album_repository.dart';
+import 'package:orbit/features/albums/domain/album.dart';
+
 import '../helpers/pump_app.dart';
+
+class _InMemoryAlbums implements AlbumRepository {
+  final List<Album> _albums = [];
+
+  @override
+  Future<List<Album>> mine() async => List.of(_albums);
+
+  @override
+  Future<String> create(String name) async {
+    final id = 'new-${_albums.length}';
+    _albums.add(Album(id: id, name: name, photoCount: 0, isPrivate: true));
+    return id;
+  }
+
+  @override
+  Future<void> addPhoto(String albumId, String mediaId) async {}
+
+  @override
+  Future<void> share(
+    String albumId,
+    String profileId,
+    AlbumAccess access, {
+    required bool viewOnce,
+  }) async {}
+
+  @override
+  Future<void> revoke(String albumId, String profileId) async {}
+
+  @override
+  Future<List<SharedAlbum>> sharedWithMe() async => const [];
+
+  @override
+  Future<OpenedAlbum> open(String albumId) => throw UnimplementedError();
+}
 
 Future<void> openChatWith(WidgetTester tester, String name) async {
   await pumpOrbit(tester);
@@ -88,6 +125,35 @@ void main() {
     await tester.pump(testReplyAfter + testTypingFor);
     await tester.pumpAndSettle();
     expect(find.text('Thanks for sharing — great pics!'), findsOneWidget);
+  });
+
+  testWidgets('sharing with no albums offers to create one', (tester) async {
+    await pumpOrbit(
+      tester,
+      overrides: [
+        albumRepositoryProvider.overrideWithValue(_InMemoryAlbums()),
+      ],
+    );
+    await onboard(tester);
+    await tapText(tester, 'Inbox');
+    await tapText(tester, 'Alex');
+
+    await tester.tap(find.byTooltip('Share an album'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text("You don't have any albums yet. Create one to share it."),
+      findsOneWidget,
+    );
+
+    await tapText(tester, 'Create album');
+    await tester.enterText(find.byType(TextField), 'Weekend');
+    await tapText(tester, 'Create');
+
+    expect(find.text('Weekend'), findsOneWidget);
+    final share = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Share album'),
+    );
+    expect(share.onPressed, isNotNull);
   });
 
   testWidgets('waving from a profile starts a conversation', (tester) async {

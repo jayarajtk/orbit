@@ -170,6 +170,8 @@
   "phraseLater": "Can't chat right now — talk later?",
   "shareAlbumTitle": "Share an album with {name}",
   "@shareAlbumTitle": {"placeholders": {"name": {"type": "String"}}},
+  "shareAlbumEmpty": "You don't have any albums yet. Create one to share it.",
+  "createAlbum": "Create album",
   "albumPhotos": "{count, plural, =1{1 photo} other{{count} photos}}",
   "@albumPhotos": {"placeholders": {"count": {"type": "int"}}},
   "albumPrivate": "Private",

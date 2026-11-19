@@ -988,6 +988,18 @@ abstract class AppLocalizations {
   /// **'Share an album with {name}'**
   String shareAlbumTitle(String name);
 
+  /// No description provided for @shareAlbumEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'You don\'t have any albums yet. Create one to share it.'**
+  String get shareAlbumEmpty;
+
+  /// No description provided for @createAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Create album'**
+  String get createAlbum;
+
   /// No description provided for @albumPhotos.
   ///
   /// In en, this message translates to:

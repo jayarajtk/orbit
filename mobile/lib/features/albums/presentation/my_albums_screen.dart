@@ -21,10 +21,7 @@ class MyAlbumsScreen extends ConsumerWidget {
   Future<void> _create(BuildContext context, WidgetRef ref) async {
     final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    final name = await showDialog<String>(
-      context: context,
-      builder: (context) => const _NameDialog(),
-    );
+    final name = await askAlbumName(context);
     if (name == null || name.trim().isEmpty) return;
     try {
       await ref.read(albumsProvider.notifier).create(name);
@@ -141,6 +138,12 @@ class MyAlbumsScreen extends ConsumerWidget {
     );
   }
 }
+
+/// Asks for a new album's name. Null when cancelled.
+Future<String?> askAlbumName(BuildContext context) => showDialog<String>(
+  context: context,
+  builder: (context) => const _NameDialog(),
+);
 
 class _NameDialog extends StatefulWidget {
   const _NameDialog();
