@@ -16,8 +16,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Deletes statuses once they expire (spec §8.1). Each one is removed outright, and a {@link
- * StatusExpired} event, stored with the delete, makes the photo get purged and retried if that
- * fails. Logs carry counts only.
+ * StatusExpired} event, stored with the delete, makes the photo get purged; the event resubmission
+ * job retries it if that fails. Logs carry counts only.
  */
 @Component
 public class StatusReaper {

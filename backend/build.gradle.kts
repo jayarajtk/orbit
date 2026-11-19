@@ -78,6 +78,8 @@ tasks.withType<JavaCompile> {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+	// Tests call jobs directly so a scheduled run never races a test clock.
+	systemProperty("orbit.scheduling.enabled", "false")
 }
 
 spotless {

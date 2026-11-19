@@ -5,7 +5,11 @@ import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
 
 import com.orbit.MutableClock;
 import com.orbit.TestcontainersConfiguration;
@@ -15,6 +19,7 @@ import com.orbit.media.application.MediaScanner;
 import com.orbit.media.application.ObjectStorage;
 import com.orbit.shared.CountingDataSource;
 import com.orbit.shared.CountingDataSource.Counted;
+import com.orbit.shared.config.EventResubmissionJob;
 import com.orbit.status.StatusApi.StatusExpired;
 import com.orbit.status.StatusApi.StatusState;
 import com.orbit.status.application.StatusReaper;
@@ -83,6 +88,7 @@ class StatusIntegrationTests {
 
   private static final Instant START = Instant.parse("2026-11-18T12:00:00Z");
   private static final Duration EVENT_WAIT = Duration.ofSeconds(5);
+  private static final String PURGER = "StatusMediaPurger";
 
   @MockitoBean JwtDecoder jwtDecoder;
   @MockitoSpyBean StatusStore statusStore;
@@ -95,7 +101,8 @@ class StatusIntegrationTests {
   @Autowired StatusApi statusApi;
   @Autowired StatusReaper reaper;
   @Autowired MediaApi mediaApi;
-  @Autowired ObjectStorage storage;
+  @MockitoSpyBean ObjectStorage storage;
+  @Autowired EventResubmissionJob resubmission;
   @Autowired CountingDataSource dataSource;
   @Autowired MeterRegistry meters;
   @Autowired ExpiryRecorder expiries;
@@ -679,6 +686,16 @@ class StatusIntegrationTests {
         .single();
   }
 
+  /** Event publications not yet completed for the listener whose id contains {@code listener}. */
+  private long incompletePublications(String listener) {
+    return jdbc.sql(
+            "SELECT count(*) FROM event_publication WHERE completion_date IS NULL"
+                + " AND listener_id LIKE :listener")
+        .param("listener", "%" + listener + "%")
+        .query(Long.class)
+        .single();
+  }
+
   /** Waits until every event publication has been handled. */
   private void awaitPublicationsCompleted() {
     await()
@@ -759,6 +776,38 @@ class StatusIntegrationTests {
 
       assertThat(reaper.reap()).isEqualTo(600);
       assertThat(jdbc.sql("SELECT count(*) FROM status").query(Long.class).single()).isZero();
+    }
+
+    @Test
+    void failedPurgeIsRetriedByTheResubmissionJob() throws Exception {
+      String mediaId = photo("alice", "STATUS_PHOTO");
+      postStatus("alice", mediaId, null).expectStatus().isCreated();
+      String key = storageKey(mediaId);
+      doThrow(new IllegalStateException("storage down"))
+          .doCallRealMethod()
+          .when(storage)
+          .delete(any());
+      // Uploading the photo deleted its original; count only the purge's own deletes.
+      clearInvocations(storage);
+      clock.advance(Duration.ofHours(24).plusSeconds(1));
+
+      assertThat(reaper.reap()).isOne();
+
+      // The first purge attempt fails, so the photo stays and the publication stays incomplete.
+      verify(storage, timeout(EVENT_WAIT.toMillis())).delete(any());
+      assertThat(storage.size(key)).isPresent();
+      assertThat(incompletePublications(PURGER)).isOne();
+
+      clock.advance(Duration.ofMinutes(10));
+      resubmission.run();
+
+      await()
+          .atMost(EVENT_WAIT)
+          .untilAsserted(() -> {
+            assertThat(incompletePublications(PURGER)).isZero();
+            assertThat(storage.size(key)).isEmpty();
+            assertThat(mediaRows(mediaId)).isZero();
+          });
     }
 
     @Test

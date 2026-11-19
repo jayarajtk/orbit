@@ -12,8 +12,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
  * Purges a status's photo once the status is gone. It lives in the status module so media never
- * depends on status. Modulith keeps the publication until this returns, so a failed purge is
- * retried.
+ * depends on status. Modulith keeps the publication until this returns, and {@code
+ * EventResubmissionJob} retries a failed purge.
  */
 @Component
 class StatusMediaPurger {
