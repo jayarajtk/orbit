@@ -40,7 +40,7 @@ void main() {
       expect(t.text, const Color(0xFF000000));
       expect(t.textMuted, const Color(0xFF6C6C70));
       expect(t.accent, const Color(0xFFE8513D));
-      expect(t.online, const Color(0xFF28A745));
+      expect(t.online, const Color(0xFF248A3D));
       expect(t.ringStart, t.accent);
       expect(t.ringEnd, const Color(0xFFFF9F0A));
     });
@@ -72,6 +72,7 @@ void main() {
         'muted text on surface': (t.textMuted, t.surface, 4.5),
         'muted text on ground': (t.textMuted, t.ground, 4.5),
         'accent on ground': (t.accent, t.ground, 3.0),
+        'online on ground': (t.online, t.ground, 3.0),
         'label on accent': (theme.colorScheme.onPrimary, t.accent, 4.5),
       };
       for (final MapEntry(key: name, value: (fg, bg, min)) in pairs.entries) {

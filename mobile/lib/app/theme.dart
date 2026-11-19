@@ -45,7 +45,8 @@ class OrbitTokens extends ThemeExtension<OrbitTokens> {
     text: const Color(0xFF000000),
     textMuted: const Color(0xFF6C6C70),
     accent: const Color(0xFFE8513D),
-    online: const Color(0xFF28A745),
+    // Deviates from spec 7.1 (#28A745, 2.88:1 on ground): WCAG 3:1 outranks it.
+    online: const Color(0xFF248A3D),
     ringStart: const Color(0xFFE8513D),
     ringEnd: _ringEnd,
     avatarGradients: _avatarGradients,
