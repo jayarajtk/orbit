@@ -37,7 +37,6 @@ class FavoritesScreen extends ConsumerWidget {
                   leading: ProfileAvatar(
                     name: p.name,
                     seed: p.id,
-                    hasPhoto: p.hasPhoto,
                     photoUrl: p.thumbUrl,
                     mediaId: p.thumbMediaId,
                     ownerId: p.id,

@@ -188,7 +188,6 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                     child: ProfileAvatar(
                       name: _profile.name,
                       seed: '${_profile.id}-$index',
-                      hasPhoto: _profile.hasPhoto,
                       photoUrl: index < _profile.photos.length
                           ? _profile.photos[index].url
                           : null,
@@ -243,7 +242,6 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                             child: ProfileAvatar(
                               name: _profile.name,
                               seed: _profile.id,
-                              hasPhoto: _profile.hasPhoto,
                               photoUrl: _profile.thumbUrl,
                               mediaId: _profile.thumbMediaId,
                               ownerId: _profile.id,

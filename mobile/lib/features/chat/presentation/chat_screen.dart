@@ -309,7 +309,6 @@ class _ChatViewState extends ConsumerState<_ChatView> {
             ProfileAvatar(
               name: profile.name,
               seed: profile.id,
-              hasPhoto: profile.hasPhoto,
               photoUrl: profile.thumbUrl,
               mediaId: profile.thumbMediaId,
               ownerId: profile.id,

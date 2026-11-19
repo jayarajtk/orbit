@@ -3,14 +3,12 @@ import 'package:orbit/app/theme.dart';
 import 'package:orbit/core/widgets/media_image.dart';
 
 /// A member's photo when [photoUrl] is set; otherwise (and while it loads or
-/// if it fails) their initial on a colour picked from their id, or a person
-/// icon when they have no photo.
+/// if it fails) their initial on a two-stop gradient picked from their id.
 class ProfileAvatar extends StatelessWidget {
   /// Creates an avatar for [name] keyed by [seed].
   const ProfileAvatar({
     required this.name,
     required this.seed,
-    this.hasPhoto = true,
     this.size = 48,
     this.square = false,
     this.photoUrl,
@@ -25,9 +23,6 @@ class ProfileAvatar extends StatelessWidget {
 
   /// Stable value (the profile id) that picks the colour.
   final String seed;
-
-  /// Whether to show the initial; otherwise a neutral icon.
-  final bool hasPhoto;
 
   /// Diameter, or edge length when [square].
   final double size;
@@ -89,42 +84,32 @@ class ProfileAvatar extends StatelessWidget {
   }
 
   Widget _placeholder(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final tokens = context.tokens;
     final gradients = tokens.avatarGradients;
     final (start, end) = gradients[seed.hashCode.abs() % gradients.length];
-    final glyphSize = size.isFinite ? size * 0.42 : 44.0;
+    final glyphSize = size.isFinite ? size * 0.42 : 48.0;
     return ExcludeSemantics(
       child: Container(
         width: size,
         height: size,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: hasPhoto ? null : scheme.surfaceContainerHighest,
-          gradient: hasPhoto
-              ? LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [start, end],
-                )
-              : null,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [start, end],
+          ),
           shape: square ? BoxShape.rectangle : BoxShape.circle,
           borderRadius: square ? BorderRadius.circular(12) : null,
         ),
-        child: hasPhoto
-            ? Text(
-                name.isEmpty ? '?' : name.characters.first.toUpperCase(),
-                style: TextStyle(
-                  color: tokens.onAvatar,
-                  fontSize: glyphSize,
-                  fontWeight: FontWeight.w700,
-                ),
-              )
-            : Icon(
-                Icons.person_outline,
-                size: glyphSize,
-                color: scheme.onSurfaceVariant,
-              ),
+        child: Text(
+          name.isEmpty ? '?' : name.characters.first.toUpperCase(),
+          style: TextStyle(
+            color: tokens.onAvatar,
+            fontSize: glyphSize,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
     );
   }

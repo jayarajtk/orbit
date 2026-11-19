@@ -1,6 +1,13 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:orbit/app/theme.dart';
 import 'package:orbit/core/widgets/glass_icon_button.dart';
+import 'package:orbit/core/widgets/media_image.dart';
+import 'package:orbit/core/widgets/profile_avatar.dart';
+import 'package:orbit/core/widgets/skeleton.dart';
 import 'package:orbit/features/chat/domain/conversation.dart';
 import 'package:orbit/features/chat/domain/message.dart';
 import 'package:orbit/features/chat/presentation/chat_controller.dart';
@@ -9,6 +16,8 @@ import 'package:orbit/features/discovery/data/dummy_profiles.dart';
 import 'package:orbit/features/discovery/data/fake_profile_repository.dart';
 import 'package:orbit/features/discovery/domain/discovery_filters.dart';
 import 'package:orbit/features/discovery/domain/profile.dart';
+import 'package:orbit/features/discovery/presentation/profile_tile.dart';
+import 'package:orbit/features/status/domain/status.dart';
 import 'package:orbit/l10n/app_localizations_en.dart';
 
 import '../helpers/pump_app.dart';
@@ -37,6 +46,42 @@ class _PhotoAddedRepository extends FakeProfileRepository {
   @override
   Future<Profile?> byId(String id) async => _alex(2);
 }
+
+/// Counts grid loads and, while [gate] is set, holds them open.
+class _GatedRepository extends FakeProfileRepository {
+  _GatedRepository() : super(latency: Duration.zero);
+
+  int nearbyCalls = 0;
+  Completer<void>? gate;
+
+  @override
+  Future<List<Profile>> nearby(DiscoveryFilters filters) async {
+    nearbyCalls++;
+    await gate?.future;
+    return super.nearby(filters);
+  }
+}
+
+Profile _member(
+  String id,
+  String name, {
+  List<ProfilePhoto> photos = const [],
+  bool online = false,
+  StatusRing status = StatusRing.none,
+}) => Profile(
+  id: id,
+  name: name,
+  age: 25,
+  distanceKm: 0,
+  online: online,
+  bio: '',
+  lookingFor: const {},
+  tags: const [],
+  photoCount: photos.length,
+  isNew: false,
+  photos: photos,
+  status: status,
+);
 
 /// Demo chat where the user has already waved at Alex twice in the last hour.
 class _WavedTwiceChat extends DemoChatController {
@@ -240,5 +285,164 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Maximum distance'), findsOneWidget);
+  });
+
+  group('grid tiles', () {
+    testWidgets(
+      'tile shows name, age, distance and online dot over the photo',
+      (
+        tester,
+      ) async {
+        await pumpOrbit(
+          tester,
+          profiles: FakeProfileRepository(
+            profiles: [
+              _member(
+                'p1',
+                'Sam',
+                online: true,
+                photos: const [
+                  ProfilePhoto(
+                    id: 'm1',
+                    url: 'https://img.test/m1.jpg',
+                    thumbUrl: 'https://img.test/m1-thumb.jpg',
+                  ),
+                ],
+              ),
+            ],
+            latency: Duration.zero,
+          ),
+        );
+        await onboard(tester);
+
+        final tile = find.byType(ProfileTile);
+        expect(tile, findsOneWidget);
+        expect(
+          find.descendant(of: tile, matching: find.byType(MediaImage)),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: tile, matching: find.text('Sam 25')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: tile, matching: find.text('<1 km')),
+          findsOneWidget,
+        );
+        final dot = find.descendant(of: tile, matching: find.byType(OnlineDot));
+        expect(dot, findsOneWidget);
+        final context = tester.element(tile);
+        final decoration =
+            tester
+                    .widget<Container>(
+                      find.descendant(
+                        of: dot,
+                        matching: find.byType(Container),
+                      ),
+                    )
+                    .decoration!
+                as BoxDecoration;
+        expect(decoration.color, context.tokens.online);
+        final name = tester.widget<Text>(find.text('Sam 25'));
+        expect(name.style!.fontSize, 15);
+        expect(name.style!.fontWeight, FontWeight.w600);
+        expect(tester.widget<Text>(find.text('<1 km')).style!.fontSize, 13);
+      },
+    );
+
+    testWidgets('member without photo shows a gradient and initial, not a '
+        'person icon', (tester) async {
+      await pumpOrbit(
+        tester,
+        profiles: FakeProfileRepository(
+          profiles: [_member('p1', 'Sam')],
+          latency: Duration.zero,
+        ),
+      );
+      await onboard(tester);
+
+      final tile = find.byType(ProfileTile);
+      expect(
+        find.descendant(of: tile, matching: find.byIcon(Icons.person_outline)),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: tile, matching: find.text('S')),
+        findsOneWidget,
+      );
+      final gradients = tester.element(tile).tokens.avatarGradients;
+      final fills = tester
+          .widgetList<Container>(
+            find.descendant(of: tile, matching: find.byType(Container)),
+          )
+          .map((c) => c.decoration)
+          .whereType<BoxDecoration>()
+          .map((d) => d.gradient)
+          .whereType<LinearGradient>();
+      expect(
+        fills.any(
+          (g) =>
+              gradients.any((pair) => listEquals(g.colors, [pair.$1, pair.$2])),
+        ),
+        isTrue,
+      );
+    });
+
+    testWidgets('pull to refresh reloads the grid', (tester) async {
+      final repository = _GatedRepository();
+      await pumpOrbit(tester, profiles: repository);
+      await onboard(tester);
+      expect(repository.nearbyCalls, 1);
+
+      await tester.fling(
+        find.byType(CustomScrollView),
+        const Offset(0, 400),
+        1000,
+      );
+      await tester.pumpAndSettle();
+
+      expect(repository.nearbyCalls, 2);
+    });
+
+    testWidgets('skeletons show while the grid loads', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      final repository = _GatedRepository()..gate = Completer<void>();
+      await pumpOrbit(tester, profiles: repository);
+      await onboard(tester);
+
+      expect(find.byType(Skeleton), findsWidgets);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(ProfileTile), findsNothing);
+
+      repository.gate!.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Skeleton), findsNothing);
+      expect(find.byType(ProfileTile), findsWidgets);
+    });
+
+    testWidgets('tile semantics label reads naturally', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pumpOrbit(
+        tester,
+        profiles: FakeProfileRepository(
+          profiles: [
+            _member('p1', 'Sam', online: true, status: StatusRing.unseen),
+          ],
+          latency: Duration.zero,
+        ),
+      );
+      await onboard(tester);
+
+      expect(
+        find.bySemanticsLabel('Sam, 25, <1 km, Online, has a new status'),
+        findsOneWidget,
+      );
+      semantics.dispose();
+    });
   });
 }

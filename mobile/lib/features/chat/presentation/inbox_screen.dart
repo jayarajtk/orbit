@@ -168,7 +168,6 @@ class _ConversationTile extends ConsumerWidget {
           ProfileAvatar(
             name: name,
             seed: conversation.profileId,
-            hasPhoto: profile?.hasPhoto ?? true,
             photoUrl: profile?.thumbUrl,
             mediaId: profile?.thumbMediaId,
             ownerId: conversation.profileId,
