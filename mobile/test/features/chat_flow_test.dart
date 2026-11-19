@@ -20,6 +20,7 @@ import 'package:orbit/features/chat/presentation/composer.dart';
 import 'package:orbit/features/chat/presentation/live_chat_controller.dart';
 import 'package:orbit/features/chat/presentation/message_bubble.dart';
 import 'package:orbit/features/chat/presentation/message_preview.dart';
+import 'package:orbit/features/chat/presentation/photo_mosaic.dart';
 import 'package:orbit/features/discovery/data/dummy_profiles.dart';
 import 'package:orbit/features/media/data/media_capture.dart';
 import 'package:orbit/features/media/data/media_repository.dart';
@@ -189,11 +190,14 @@ Message _photo(
   int minute = 0,
   bool viewOnce = false,
   DateTime? at,
+  DeliveryStatus status = DeliveryStatus.sent,
+  bool uploaded = true,
 }) => Message(
   id: id,
   fromMe: fromMe,
   kind: MessageKind.photo,
-  mediaId: 'media-$id',
+  mediaId: uploaded ? 'media-$id' : null,
+  status: status,
   viewOnce: viewOnce,
   sentAt: at ?? testNow.subtract(Duration(minutes: 60 - minute)),
 );
@@ -211,6 +215,59 @@ class _SamSentFivePhotos extends DemoChatController {
         ],
       ),
     };
+  }
+
+  @override
+  Future<MediaLinks> mediaLinks(String profileId, String messageId) async =>
+      MediaLinks(
+        url: 'https://x.test/$messageId/full',
+        thumbUrl: 'https://x.test/$messageId/thumb',
+        expiresAt: DateTime.utc(2030),
+      );
+}
+
+/// The user sent three photos; the first one failed to upload.
+class _FirstOfThreeFailed extends DemoChatController {
+  final retried = <String>[];
+
+  @override
+  Map<String, Conversation> build() {
+    return {
+      ...super.build(),
+      dummyProfiles[1].id: Conversation(
+        profileId: dummyProfiles[1].id,
+        messages: [
+          _photo(
+            'p0',
+            fromMe: true,
+            minute: 55,
+            status: DeliveryStatus.failed,
+            uploaded: false,
+          ),
+          _photo('p1', fromMe: true, minute: 56),
+          _photo('p2', fromMe: true, minute: 57),
+        ],
+      ),
+    };
+  }
+
+  @override
+  void retry(String profileId, String messageId) {
+    retried.add(messageId);
+    final conversation = state[profileId]!;
+    put(
+      conversation.copyWith(
+        messages: [
+          for (final m in conversation.messages)
+            m.id == messageId
+                ? m.copyWith(
+                    mediaId: 'media-${m.id}',
+                    status: DeliveryStatus.sent,
+                  )
+                : m,
+        ],
+      ),
+    );
   }
 
   @override
@@ -462,6 +519,32 @@ void main() {
         DaySeparatorItem,
         MessageItem,
       ]);
+    });
+
+    test('a pending or failed photo stays single until it is sent', () {
+      final photos = [
+        _photo('a', fromMe: true, status: DeliveryStatus.failed),
+        _photo('b', fromMe: true, minute: 1, status: DeliveryStatus.pending),
+        _photo('c', fromMe: true, minute: 2),
+        _photo('d', fromMe: true, minute: 3, status: DeliveryStatus.read),
+      ];
+
+      final items = _bodyItems(photos);
+
+      expect(items.map((i) => i.runtimeType), [
+        MessageItem,
+        MessageItem,
+        PhotoMosaicItem,
+      ]);
+      expect((items[2] as PhotoMosaicItem).photos.map((m) => m.id), [
+        'c',
+        'd',
+      ]);
+
+      final sent = [
+        for (final m in photos) m.copyWith(status: DeliveryStatus.sent),
+      ];
+      expect(_bodyItems(sent).single, isA<PhotoMosaicItem>());
     });
 
     test('a mosaic groups with the messages around it', () {
@@ -1037,6 +1120,61 @@ void main() {
   });
 
   group('photo mosaic', () {
+    Future<_FirstOfThreeFailed> openFailedFirst(WidgetTester tester) async {
+      final chat = _FirstOfThreeFailed();
+      await openSamsChat(
+        tester,
+        overrides: [chatProvider.overrideWith(() => chat)],
+      );
+      return chat;
+    }
+
+    testWidgets('a failed photo is its own bubble and can be retried', (
+      tester,
+    ) async {
+      final chat = await openFailedFirst(tester);
+
+      expect(find.byType(MessageBubble), findsNWidgets(2));
+      expect(find.text('Not sent · Tap to retry'), findsOneWidget);
+      expect(find.text('Uploading…'), findsOneWidget);
+      expect(find.byType(PhotoMosaic), findsOneWidget);
+      expect(
+        tester.widget<PhotoMosaic>(find.byType(PhotoMosaic)).photos,
+        hasLength(2),
+      );
+
+      await tester.tap(find.text('Uploading…'));
+      await tester.pumpAndSettle();
+
+      expect(chat.retried, ['p0']);
+      expect(find.byType(MessageBubble), findsOneWidget);
+      expect(
+        tester.widget<PhotoMosaic>(find.byType(PhotoMosaic)).photos,
+        hasLength(3),
+      );
+      expect(find.text('Not sent · Tap to retry'), findsNothing);
+    });
+
+    testWidgets('long-pressing a mosaic unsends every photo after asking', (
+      tester,
+    ) async {
+      final chat = await openFailedFirst(tester);
+      await tester.tap(find.text('Uploading…'));
+      await tester.pumpAndSettle();
+
+      await tester.longPress(find.byType(PhotoMosaic));
+      await tester.pumpAndSettle();
+      expect(find.byType(PhotoMosaic), findsOneWidget);
+      await tapText(tester, 'Unsend');
+
+      expect(find.byType(PhotoMosaic), findsNothing);
+      expect(find.text('This message was unsent'), findsNWidgets(3));
+      expect(
+        chat.state[dummyProfiles[1].id]!.messages.where((m) => m.unsent),
+        hasLength(3),
+      );
+    });
+
     Future<void> openMosaic(WidgetTester tester) => openSamsChat(
       tester,
       overrides: [chatProvider.overrideWith(_SamSentFivePhotos.new)],

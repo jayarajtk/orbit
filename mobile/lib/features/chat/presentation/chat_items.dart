@@ -67,8 +67,8 @@ const _groupGap = Duration(minutes: 2);
 /// Turns [messages] (oldest first) into the items the chat list draws.
 ///
 /// Consecutive waves from the same sender collapse into one run; two or
-/// more consecutive photos (not view-once) from one sender, each within two
-/// minutes of the one before, become a [PhotoMosaicItem]; a
+/// more consecutive sent photos (not view-once) from one sender, each
+/// within two minutes of the one before, become a [PhotoMosaicItem]; a
 /// [DaySeparatorItem] opens each local calendar day; and consecutive
 /// messages and mosaics from one sender within two minutes are grouped. A
 /// wave run or a separator between two messages always breaks their group.
@@ -131,9 +131,15 @@ List<ChatItem> chatItems(List<Message> messages) {
   return _grouped(items);
 }
 
-/// Whether [message] can be one tile of a mosaic.
+/// Whether [message] can be one tile of a mosaic. Photos still uploading
+/// or failed stay single bubbles, so their state and retry stay visible;
+/// they join the mosaic once sent.
 bool _joinsMosaic(Message message) =>
-    message.kind == MessageKind.photo && !message.viewOnce && !message.unsent;
+    message.kind == MessageKind.photo &&
+    !message.viewOnce &&
+    !message.unsent &&
+    (message.status == DeliveryStatus.sent ||
+        message.status == DeliveryStatus.read);
 
 /// The first and last message a bubble-drawn item stands for, or null for
 /// items that are not bubbles.

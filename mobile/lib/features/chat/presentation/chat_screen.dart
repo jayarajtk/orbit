@@ -288,10 +288,16 @@ class _ChatViewState extends ConsumerState<_ChatView> {
     }
   }
 
-  Future<void> _unsend(Message message) async {
+  /// Unsends [messages] (one bubble, or every photo of a mosaic) after
+  /// asking once. Messages past the unsend window are left alone.
+  Future<void> _unsend(List<Message> messages) async {
     final l10n = AppLocalizations.of(context);
     final now = ref.read(clockProvider)();
-    if (!message.canUnsend(now)) {
+    final allowed = [
+      for (final message in messages)
+        if (message.canUnsend(now)) message,
+    ];
+    if (allowed.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.unsendExpired)),
       );
@@ -307,8 +313,10 @@ class _ChatViewState extends ConsumerState<_ChatView> {
         ),
       ),
     );
-    if (confirmed ?? false) {
-      ref.read(chatProvider.notifier).unsend(_id, message.id);
+    if (!(confirmed ?? false)) return;
+    final chat = ref.read(chatProvider.notifier);
+    for (final message in allowed) {
+      chat.unsend(_id, message.id);
     }
   }
 
@@ -456,7 +464,9 @@ class _ChatViewState extends ConsumerState<_ChatView> {
                       _ => false,
                     },
                     onLongPress: message.fromMe && !message.unsent
-                        ? () => _unsend(message)
+                        ? () => _unsend(
+                            item is PhotoMosaicItem ? item.photos : [message],
+                          )
                         : null,
                     onTap: message.status == DeliveryStatus.failed
                         ? () => ref
