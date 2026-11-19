@@ -2,7 +2,10 @@ package com.orbit.profile.infrastructure;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -23,6 +26,22 @@ public class PhotoStore {
         .param("account", accountId)
         .query(UUID.class)
         .list();
+  }
+
+  /** Each member's photo at position 0 ({@link #replace} always numbers from 0). */
+  public Map<UUID, UUID> mainPhotoIds(Collection<UUID> accountIds) {
+    if (accountIds.isEmpty()) {
+      return Map.of();
+    }
+    Map<UUID, UUID> photos = new HashMap<>();
+    jdbc.sql(
+            "SELECT account_id, media_id FROM profile_photo"
+                + " WHERE account_id IN (:accounts) AND position = 0")
+        .param("accounts", accountIds)
+        .query(rs -> {
+          photos.put(rs.getObject("account_id", UUID.class), rs.getObject("media_id", UUID.class));
+        });
+    return photos;
   }
 
   /** Replaces all of {@code accountId}'s photos with {@code mediaIds}, in that order. */

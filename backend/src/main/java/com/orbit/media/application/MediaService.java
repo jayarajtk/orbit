@@ -230,6 +230,18 @@ public class MediaService implements MediaApi {
   }
 
   @Override
+  public Attachment requirePurpose(UUID ownerId, UUID mediaId, String purpose) {
+    return store
+        .find(mediaId)
+        .filter(m ->
+            m.ownerId().equals(ownerId)
+                && m.status() == Status.READY
+                && m.purpose().name().equals(purpose))
+        .map(m -> new Attachment(m.id(), m.kind(), m.width(), m.height(), m.durationMs()))
+        .orElseThrow(MediaUnavailableException::new);
+  }
+
+  @Override
   public Map<UUID, Links> links(Collection<UUID> mediaIds) {
     Map<UUID, Links> links = new LinkedHashMap<>();
     for (MediaRow row : store.findReady(mediaIds)) {

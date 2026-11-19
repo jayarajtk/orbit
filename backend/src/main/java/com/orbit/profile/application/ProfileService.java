@@ -142,6 +142,12 @@ public class ProfileService implements ProfileApi {
 
   @Override
   @Transactional(readOnly = true)
+  public Map<UUID, UUID> mainPhotoIds(Collection<UUID> accountIds) {
+    return photos.mainPhotoIds(accountIds);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
   public Optional<Card> card(UUID accountId) {
     return profiles
         .findById(accountId)

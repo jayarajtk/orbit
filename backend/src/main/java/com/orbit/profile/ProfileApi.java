@@ -16,6 +16,12 @@ public interface ProfileApi {
   /** Display names for the given members; members without a profile are absent. */
   Map<UUID, String> displayNames(Collection<UUID> accountIds);
 
+  /**
+   * Each member's first public photo, in one query; members without photos are absent. For lists of
+   * members that show a small avatar.
+   */
+  Map<UUID, UUID> mainPhotoIds(Collection<UUID> accountIds);
+
   /** The member's profile as moderators review it, if they have one. */
   Optional<Card> card(UUID accountId);
 

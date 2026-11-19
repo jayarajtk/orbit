@@ -29,6 +29,7 @@ class ModularityTests {
             "Safety",
             "Notification",
             "Billing",
+            "Status",
             "Shared");
   }
 }

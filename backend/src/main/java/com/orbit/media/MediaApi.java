@@ -16,6 +16,14 @@ public interface MediaApi {
    */
   Attachment requireAttachable(UUID ownerId, UUID mediaId, Kind kind, boolean publicUse);
 
+  /**
+   * Checks that {@code mediaId} is {@code ownerId}'s, processed, and was uploaded for {@code
+   * purpose} (a purpose name such as {@code STATUS_PHOTO}).
+   *
+   * @throws MediaUnavailableException otherwise (one error for every reason)
+   */
+  Attachment requirePurpose(UUID ownerId, UUID mediaId, String purpose);
+
   /** Short-lived download links for ready media; ids that aren't ready are left out. */
   Map<UUID, Links> links(Collection<UUID> mediaIds);
 
