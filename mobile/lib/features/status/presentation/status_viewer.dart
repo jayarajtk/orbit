@@ -295,7 +295,7 @@ class _StatusPlayerState extends ConsumerState<_StatusPlayer>
   ImageProvider _providerFor(_Slide slide) => CachedNetworkImageProvider(
     slide.url,
     cacheKey: mediaCacheKey(slide.id, MediaVariant.full),
-    cacheManager: ref.read(orbitImageCacheProvider).manager,
+    cacheManager: ref.read(orbitImageCacheProvider).statusManager,
   );
 
   /// Starts the current status: its timer, its view, its image check and
@@ -565,6 +565,7 @@ class _StatusPlayerState extends ConsumerState<_StatusPlayer>
                     url: slide.url,
                     thumbUrl: slide.thumbUrl,
                     ownerId: _isMine ? null : widget.profileId,
+                    isStatus: true,
                     fit: BoxFit.contain,
                     placeholder: const ColoredBox(
                       color: Colors.black, // photo-overlay

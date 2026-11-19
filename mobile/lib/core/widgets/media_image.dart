@@ -17,15 +17,36 @@ enum MediaVariant {
 String mediaCacheKey(String mediaId, MediaVariant variant) =>
     '$mediaId:${variant.name}';
 
+/// The disk cache for status photos. A status lives 24 hours, so its photo
+/// is dropped once it has gone [stalePeriod] without being viewed, instead
+/// of the shared cache's 30 days.
+class StatusImageCacheManager extends CacheManager {
+  /// The one instance: a cache key must have only one manager.
+  factory StatusImageCacheManager() => _instance;
+
+  StatusImageCacheManager._() : super(Config(_key, stalePeriod: stalePeriod));
+
+  /// How long an unviewed status photo stays on disk.
+  static const stalePeriod = Duration(hours: 24);
+
+  static const _key = 'orbitStatusImages';
+  static final _instance = StatusImageCacheManager._();
+}
+
 /// The on-disk image cache. Remembers which cached keys belong to which
 /// member (in memory only) so a blocked member's images can be removed.
 class OrbitImageCache {
-  /// Creates the cache over [manager], or the shared default one.
-  OrbitImageCache({BaseCacheManager? manager})
-    : manager = manager ?? DefaultCacheManager();
+  /// Creates the cache over [manager] and [statusManager], or the default
+  /// ones.
+  OrbitImageCache({BaseCacheManager? manager, BaseCacheManager? statusManager})
+    : manager = manager ?? DefaultCacheManager(),
+      statusManager = statusManager ?? StatusImageCacheManager();
 
   /// The store that [CachedNetworkImage] reads and writes.
   final BaseCacheManager manager;
+
+  /// The store for status photos, kept for a day at most.
+  final BaseCacheManager statusManager;
 
   final Map<String, Set<String>> _keysByOwner = {};
 
@@ -38,6 +59,7 @@ class OrbitImageCache {
     _keysByOwner.clear();
     PaintingBinding.instance.imageCache.clear();
     await manager.emptyCache();
+    await statusManager.emptyCache();
   }
 
   /// Deletes the cached images registered for [ownerId], e.g. when blocked.
@@ -47,6 +69,7 @@ class OrbitImageCache {
     PaintingBinding.instance.imageCache.clear();
     for (final key in keys) {
       await manager.removeFile(key);
+      await statusManager.removeFile(key);
     }
   }
 }
@@ -69,6 +92,7 @@ class MediaImage extends ConsumerWidget {
     this.fit = BoxFit.cover,
     this.ownerId,
     this.placeholder,
+    this.isStatus = false,
     super.key,
   });
 
@@ -99,6 +123,10 @@ class MediaImage extends ConsumerWidget {
   /// null.
   final Widget? placeholder;
 
+  /// A status photo: cached in [OrbitImageCache.statusManager], which keeps
+  /// it for a day at most.
+  final bool isStatus;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (!cache) {
@@ -114,6 +142,7 @@ class MediaImage extends ConsumerWidget {
       );
     }
     final imageCache = ref.watch(orbitImageCacheProvider);
+    final manager = isStatus ? imageCache.statusManager : imageCache.manager;
     final owner = ownerId;
     if (owner != null) {
       imageCache.register(owner, [
@@ -131,8 +160,8 @@ class MediaImage extends ConsumerWidget {
       children: [
         ?placeholder,
         if (showThumb)
-          _cached(imageCache.manager, thumb, MediaVariant.thumb, Duration.zero),
-        _cached(imageCache.manager, url, variant, fade),
+          _cached(manager, thumb, MediaVariant.thumb, Duration.zero),
+        _cached(manager, url, variant, fade),
       ],
     );
   }

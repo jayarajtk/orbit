@@ -39,8 +39,16 @@ class _RecordingManager extends CacheManager {
   Future<void> removeFile(String key) async => removed.add(key);
 }
 
+/// The status-photo store, which this viewer never uses: it only has to
+/// accept the eviction that a block sends to every store.
+class _UnusedStatusImages extends Fake implements BaseCacheManager {
+  @override
+  Future<void> removeFile(String key) async {}
+}
+
 class _ManagedCache extends OrbitImageCache {
-  _ManagedCache(_RecordingManager manager) : super(manager: manager);
+  _ManagedCache(_RecordingManager manager)
+    : super(manager: manager, statusManager: _UnusedStatusImages());
 }
 
 const _items = [

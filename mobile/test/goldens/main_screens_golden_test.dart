@@ -262,7 +262,10 @@ Future<void> _pumpStandalone(
       overrides: [
         clockProvider.overrideWithValue(() => _now),
         orbitImageCacheProvider.overrideWithValue(
-          OrbitImageCache(manager: _SolidImages(swatches)),
+          OrbitImageCache(
+            manager: _SolidImages(swatches),
+            statusManager: _SolidImages(swatches),
+          ),
         ),
         ...overrides,
       ],
@@ -285,7 +288,10 @@ Future<void> _pumpApp(
   _setUpPhone(tester, brightness);
   await pumpOrbit(
     tester,
-    imageCache: OrbitImageCache(manager: _SolidImages(swatches)),
+    imageCache: OrbitImageCache(
+      manager: _SolidImages(swatches),
+      statusManager: _SolidImages(swatches),
+    ),
   );
   // `pumpOrbit` sizes the view for its own tests; this suite owns the size.
   tester.view

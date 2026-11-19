@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -34,6 +35,20 @@ class _Images extends CacheManager {
   }) => url.contains('gone')
       ? Stream.error(Exception('410'))
       : StreamController<FileResponse>().stream;
+}
+
+/// The shared image cache: status photos must never be read from or
+/// written to it, so any request fails the test.
+class _SharedImages extends CacheManager {
+  _SharedImages() : super(Config('status-viewer-shared-test'));
+
+  @override
+  Stream<FileResponse> getFileStream(
+    String url, {
+    String? key,
+    Map<String, String>? headers,
+    bool withProgress = false,
+  }) => throw StateError('Status photo $key went to the shared cache');
 }
 
 class _RecordingSafety implements SafetyRepository {
@@ -111,7 +126,9 @@ Future<_Harness> _open(
   String profileId = 'p1',
   List<Map<String, Object?>> theirs = const [],
   List<Map<String, Object?>> Function()? mine,
+  BaseCacheManager? statusImages,
 }) async {
+  final statuses = statusImages ?? _Images();
   final adapter = FakeAdapter(
     {
       'PUT /statuses/s1/view': (204, null),
@@ -140,7 +157,7 @@ Future<_Harness> _open(
           FakeProfileRepository(profiles: [_sam], latency: Duration.zero),
         ),
         orbitImageCacheProvider.overrideWithValue(
-          OrbitImageCache(manager: _Images()),
+          OrbitImageCache(manager: _SharedImages(), statusManager: statuses),
         ),
       ],
       child: MaterialApp(
@@ -504,6 +521,22 @@ void main() {
 
     expect(find.text('Caption 2'), findsOneWidget);
     expect(find.text('Caption 1'), findsNothing);
+  });
+
+  testWidgets('status photos use the short-lived status cache', (
+    tester,
+  ) async {
+    final statuses = _Images();
+    await _open(tester, theirs: _threeStatuses, statusImages: statuses);
+    await _tapRight(tester);
+
+    final images = tester.widgetList<CachedNetworkImage>(
+      find.byType(CachedNetworkImage),
+    );
+    expect(images, isNotEmpty);
+    for (final image in images) {
+      expect(image.cacheManager, same(statuses));
+    }
   });
 
   testWidgets('closes when the member has no statuses', (tester) async {
