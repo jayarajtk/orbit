@@ -1,10 +1,47 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:orbit/features/media/data/media_capture.dart';
+import 'package:orbit/features/media/data/media_repository.dart';
 import 'package:orbit/features/media/data/photo_metadata.dart';
+import 'package:orbit/features/media/domain/media.dart';
 
+import '../helpers/fake_api.dart';
 import '../helpers/photo_bytes.dart';
+
+/// The library as `image_picker` sees it: three photos that still carry GPS.
+class _GalleryWithGps extends Fake implements ImagePicker {
+  int? limit;
+  double? maxWidth;
+  double? maxHeight;
+  int? imageQuality;
+  bool? requestFullMetadata;
+
+  @override
+  Future<List<XFile>> pickMultiImage({
+    double? maxWidth,
+    double? maxHeight,
+    int? imageQuality,
+    int? limit,
+    bool requestFullMetadata = true,
+  }) async {
+    this.limit = limit;
+    this.maxWidth = maxWidth;
+    this.maxHeight = maxHeight;
+    this.imageQuality = imageQuality;
+    this.requestFullMetadata = requestFullMetadata;
+    return [
+      for (var i = 0; i < 3; i++)
+        XFile.fromData(
+          Uint8List.fromList(pickerJpeg(orientation: 6)),
+          name: 'photo-$i.jpg',
+        ),
+    ];
+  }
+}
 
 String _latin1(Uint8List bytes) => latin1.decode(bytes);
 
@@ -117,5 +154,79 @@ void main() {
       () => stripPhotoMetadata(Uint8List.fromList(utf8.encode('GIF89a'))),
       throwsFormatException,
     );
+  });
+
+  group('pickPhotos', () {
+    test(
+      'asks for the same size and quality as pickPhoto, up to ten',
+      () async {
+        final gallery = _GalleryWithGps();
+
+        final photos = await ImagePickerMediaPicker(
+          picker: gallery,
+        ).pickPhotos();
+
+        expect(photos, hasLength(3));
+        expect(photos.map((p) => p.contentType), everyElement('image/jpeg'));
+        expect(gallery.limit, 10);
+        expect(gallery.maxWidth, ImagePickerMediaPicker.maxPhotoSide);
+        expect(gallery.maxHeight, ImagePickerMediaPicker.maxPhotoSide);
+        expect(gallery.imageQuality, 85);
+        expect(gallery.requestFullMetadata, isFalse);
+      },
+    );
+
+    test('strips location metadata from every photo', () async {
+      final api = FakeAdapter({
+        'POST /media/uploads': (
+          201,
+          {
+            'id': 'm1',
+            'uploadUrl': 'https://storage.test/m/m1/original?X-Amz-Signature=x',
+            'headers': {'Content-Type': 'image/jpeg'},
+            'expiresAt': '2026-11-18T12:05:00Z',
+          },
+        ),
+        'POST /media/uploads/m1/complete': (
+          200,
+          {
+            'id': 'm1',
+            'kind': 'PHOTO',
+            'privateOnly': false,
+            'links': {
+              'kind': 'PHOTO',
+              'url': 'https://storage.test/full',
+              'width': 10,
+              'height': 10,
+              'expiresAt': '2026-11-18T12:10:00Z',
+            },
+          },
+        ),
+      });
+      final storage = FakeAdapter({
+        'PUT https://storage.test/m/m1/original?X-Amz-Signature=x': (200, null),
+      });
+      final repository = ApiMediaRepository(
+        dioWith(api)..options.headers['Authorization'] = 'Bearer t',
+        Dio()..httpClientAdapter = storage,
+      );
+
+      final photos = await ImagePickerMediaPicker(
+        picker: _GalleryWithGps(),
+      ).pickPhotos();
+      for (final photo in photos) {
+        await repository.upload(
+          MediaPurpose.chatPhoto,
+          photo.bytes,
+          photo.contentType,
+        );
+      }
+
+      expect(storage.streamedBodies, hasLength(3));
+      for (final sent in storage.streamedBodies) {
+        expect(_latin1(sent), isNot(contains('GPS')));
+        expect(_orientation(sent), 6);
+      }
+    });
   });
 }

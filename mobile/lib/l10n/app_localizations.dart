@@ -820,12 +820,6 @@ abstract class AppLocalizations {
   /// **'Send'**
   String get sendTooltip;
 
-  /// No description provided for @photoTooltip.
-  ///
-  /// In en, this message translates to:
-  /// **'Photos arrive with media uploads'**
-  String get photoTooltip;
-
   /// No description provided for @albumTooltip.
   ///
   /// In en, this message translates to:
@@ -1816,12 +1810,6 @@ abstract class AppLocalizations {
   /// **'That file couldn\'t be used. Try another one.'**
   String get uploadFailed;
 
-  /// No description provided for @photoOption.
-  ///
-  /// In en, this message translates to:
-  /// **'Photo from library'**
-  String get photoOption;
-
   /// No description provided for @cameraOption.
   ///
   /// In en, this message translates to:
@@ -1834,17 +1822,23 @@ abstract class AppLocalizations {
   /// **'View-once photo'**
   String get viewOnceOption;
 
-  /// No description provided for @videoOption.
-  ///
-  /// In en, this message translates to:
-  /// **'Video (up to 60 seconds)'**
-  String get videoOption;
-
   /// No description provided for @attachTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Send a photo or video'**
+  /// **'Attach'**
   String get attachTooltip;
+
+  /// No description provided for @photosOption.
+  ///
+  /// In en, this message translates to:
+  /// **'Photos (up to 10)'**
+  String get photosOption;
+
+  /// No description provided for @photoTileLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo {current} of {total}'**
+  String photoTileLabel(int current, int total);
 
   /// No description provided for @voiceTooltip.
   ///

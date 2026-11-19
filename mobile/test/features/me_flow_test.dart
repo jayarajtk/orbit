@@ -38,6 +38,9 @@ class _CountingPicker implements MediaPicker {
   }
 
   @override
+  Future<List<PickedMedia>> pickPhotos({int limit = 10}) async => const [];
+
+  @override
   Future<PickedMedia?> pickVideo({required Duration maxDuration}) async {
     calls++;
     return null;

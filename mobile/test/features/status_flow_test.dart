@@ -30,6 +30,9 @@ class _Picker implements MediaPicker {
       PickedMedia(bytes: plainJpeg(), contentType: 'image/jpeg');
 
   @override
+  Future<List<PickedMedia>> pickPhotos({int limit = 10}) async => const [];
+
+  @override
   Future<PickedMedia?> pickVideo({required Duration maxDuration}) async => null;
 }
 

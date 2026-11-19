@@ -3,6 +3,7 @@ import 'package:orbit/app/theme.dart';
 import 'package:orbit/features/chat/domain/message.dart';
 import 'package:orbit/features/chat/presentation/message_media.dart';
 import 'package:orbit/features/chat/presentation/message_preview.dart';
+import 'package:orbit/features/chat/presentation/photo_mosaic.dart';
 import 'package:orbit/l10n/app_localizations.dart';
 
 /// One message in the chat thread.
@@ -16,6 +17,7 @@ class MessageBubble extends StatelessWidget {
     this.groupedWithNext = false,
     this.groupedWithPrevious = false,
     this.waveCount = 1,
+    this.mosaic,
     this.onLongPress,
     this.onTap,
     super.key,
@@ -45,6 +47,10 @@ class MessageBubble extends StatelessWidget {
   /// of a run of waves.
   final int waveCount;
 
+  /// The photos this bubble draws as one mosaic, when [message] is the
+  /// newest of them.
+  final List<Message>? mosaic;
+
   /// Long-press action (unsend), if allowed.
   final VoidCallback? onLongPress;
 
@@ -61,7 +67,10 @@ class MessageBubble extends StatelessWidget {
     final failed = message.status == DeliveryStatus.failed;
 
     final Widget content;
-    if (message.unsent) {
+    final photos = mosaic;
+    if (photos != null) {
+      content = PhotoMosaic(profileId: profileId, photos: photos);
+    } else if (message.unsent) {
       content = Text(
         l10n.unsentMessage,
         style: TextStyle(color: foreground, fontStyle: FontStyle.italic),

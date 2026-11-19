@@ -33,6 +33,11 @@ abstract interface class MediaPicker {
   /// it); `MediaRepository.upload` strips that. Null if the user cancels.
   Future<PickedMedia?> pickPhoto({required bool camera});
 
+  /// Up to [limit] photos from the library, in the order they were picked.
+  /// Resized and left with metadata exactly as [pickPhoto] leaves them.
+  /// Empty if the user cancels.
+  Future<List<PickedMedia>> pickPhotos({int limit = 10});
+
   /// A video of up to [maxDuration] from the library, as the library holds
   /// it: location included (`MediaRepository.upload` strips that). Null if
   /// cancelled.
@@ -66,10 +71,16 @@ final Provider<VoiceRecorder> voiceRecorderProvider =
 
 /// [MediaPicker] on `image_picker`.
 class ImagePickerMediaPicker implements MediaPicker {
-  final _picker = ImagePicker();
+  /// Creates the picker; [picker] replaces the device's in tests.
+  ImagePickerMediaPicker({ImagePicker? picker})
+    : _picker = picker ?? ImagePicker();
+
+  final ImagePicker _picker;
 
   /// Longest side sent for photos; the server keeps at most this too.
   static const maxPhotoSide = 2048.0;
+
+  static const _photoQuality = 85;
 
   @override
   Future<PickedMedia?> pickPhoto({required bool camera}) async {
@@ -77,16 +88,30 @@ class ImagePickerMediaPicker implements MediaPicker {
       source: camera ? ImageSource.camera : ImageSource.gallery,
       maxWidth: maxPhotoSide,
       maxHeight: maxPhotoSide,
-      imageQuality: 85,
+      imageQuality: _photoQuality,
       requestFullMetadata: false,
     );
-    if (file == null) return null;
-    final lower = file.name.toLowerCase();
-    return PickedMedia(
-      bytes: await file.readAsBytes(),
-      contentType: lower.endsWith('.png') ? 'image/png' : 'image/jpeg',
-    );
+    return file == null ? null : _photo(file);
   }
+
+  @override
+  Future<List<PickedMedia>> pickPhotos({int limit = 10}) async {
+    final files = await _picker.pickMultiImage(
+      maxWidth: maxPhotoSide,
+      maxHeight: maxPhotoSide,
+      imageQuality: _photoQuality,
+      limit: limit,
+      requestFullMetadata: false,
+    );
+    return [for (final file in files.take(limit)) await _photo(file)];
+  }
+
+  Future<PickedMedia> _photo(XFile file) async => PickedMedia(
+    bytes: await file.readAsBytes(),
+    contentType: file.name.toLowerCase().endsWith('.png')
+        ? 'image/png'
+        : 'image/jpeg',
+  );
 
   @override
   Future<PickedMedia?> pickVideo({required Duration maxDuration}) async {

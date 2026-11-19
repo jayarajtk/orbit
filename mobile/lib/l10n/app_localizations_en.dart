@@ -412,9 +412,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sendTooltip => 'Send';
 
   @override
-  String get photoTooltip => 'Photos arrive with media uploads';
-
-  @override
   String get albumTooltip => 'Share an album';
 
   @override
@@ -988,19 +985,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uploadFailed => 'That file couldn\'t be used. Try another one.';
 
   @override
-  String get photoOption => 'Photo from library';
-
-  @override
   String get cameraOption => 'Take a photo';
 
   @override
   String get viewOnceOption => 'View-once photo';
 
   @override
-  String get videoOption => 'Video (up to 60 seconds)';
+  String get attachTooltip => 'Attach';
 
   @override
-  String get attachTooltip => 'Send a photo or video';
+  String get photosOption => 'Photos (up to 10)';
+
+  @override
+  String photoTileLabel(int current, int total) {
+    return 'Photo $current of $total';
+  }
 
   @override
   String get voiceTooltip => 'Record a voice note';

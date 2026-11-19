@@ -9,8 +9,10 @@ import 'package:orbit/core/clock.dart';
 import 'package:orbit/core/widgets/empty_state.dart';
 import 'package:orbit/core/widgets/profile_avatar.dart';
 import 'package:orbit/features/chat/domain/message.dart';
+import 'package:orbit/features/chat/presentation/attach_sheet.dart';
 import 'package:orbit/features/chat/presentation/chat_controller.dart';
 import 'package:orbit/features/chat/presentation/chat_items.dart';
+import 'package:orbit/features/chat/presentation/composer.dart';
 import 'package:orbit/features/chat/presentation/message_bubble.dart';
 import 'package:orbit/features/chat/presentation/message_preview.dart';
 import 'package:orbit/features/discovery/domain/profile.dart';
@@ -97,7 +99,8 @@ enum _ChatMenu { profile, mute, safety }
 Message? _bubbleMessage(ChatItem item) => switch (item) {
   MessageItem(:final message) => message,
   WaveRunItem(:final waves) => waves.last,
-  DaySeparatorItem() || PhotoMosaicItem() => null,
+  PhotoMosaicItem(:final photos) => photos.last,
+  DaySeparatorItem() => null,
 };
 
 class _ChatView extends ConsumerStatefulWidget {
@@ -144,51 +147,50 @@ class _ChatViewState extends ConsumerState<_ChatView> {
   static const _minVoice = Duration(seconds: 1);
 
   Future<void> _attach() async {
-    final l10n = AppLocalizations.of(context);
-    final choice = await showModalBottomSheet<_Attachment>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final (option, icon, label) in [
-              (_Attachment.library, Icons.photo_outlined, l10n.photoOption),
-              (
-                _Attachment.camera,
-                Icons.photo_camera_outlined,
-                l10n.cameraOption,
-              ),
-              (
-                _Attachment.viewOnce,
-                Icons.filter_1_outlined,
-                l10n.viewOnceOption,
-              ),
-              (_Attachment.video, Icons.videocam_outlined, l10n.videoOption),
-            ])
-              ListTile(
-                leading: Icon(icon),
-                title: Text(label),
-                onTap: () => Navigator.of(context).pop(option),
-              ),
-          ],
-        ),
-      ),
+    final choice = await showAttachSheet(
+      context,
+      mediaEnabled: _recorder != null,
     );
     if (choice == null || !mounted) return;
-    final picker = ref.read(mediaPickerProvider);
-    final picked = choice == _Attachment.video
-        ? await picker.pickVideo(maxDuration: const Duration(seconds: 60))
-        : await picker.pickPhoto(camera: choice == _Attachment.camera);
+    switch (choice) {
+      case AttachChoice.photos:
+        await _sendPhotos();
+      case AttachChoice.camera || AttachChoice.viewOnce:
+        await _sendPhoto(
+          camera: choice == AttachChoice.camera,
+          viewOnce: choice == AttachChoice.viewOnce,
+        );
+      case AttachChoice.album:
+        await context.push(AppRoutes.shareAlbum(_id));
+      case AttachChoice.location:
+        await _shareLocation();
+      case AttachChoice.quickPhrase:
+        await _quickPhrases();
+    }
+  }
+
+  /// Sends each photo the member picks as its own message, in the order
+  /// they were picked.
+  Future<void> _sendPhotos() async {
+    final picked = await ref.read(mediaPickerProvider).pickPhotos();
+    if (!mounted) return;
+    final chat = ref.read(chatProvider.notifier);
+    for (final photo in picked) {
+      chat.sendMedia(_id, MessageKind.photo, photo);
+    }
+  }
+
+  Future<void> _sendPhoto({
+    required bool camera,
+    required bool viewOnce,
+  }) async {
+    final picked = await ref
+        .read(mediaPickerProvider)
+        .pickPhoto(camera: camera);
     if (picked == null || !mounted) return;
     ref
         .read(chatProvider.notifier)
-        .sendMedia(
-          _id,
-          choice == _Attachment.video ? MessageKind.video : MessageKind.photo,
-          picked,
-          viewOnce: choice == _Attachment.viewOnce,
-        );
+        .sendMedia(_id, MessageKind.photo, picked, viewOnce: viewOnce);
   }
 
   Future<void> _startVoice() async {
@@ -421,18 +423,31 @@ class _ChatViewState extends ConsumerState<_ChatView> {
                   final message = _bubbleMessage(item);
                   if (message == null) return const SizedBox.shrink();
                   return MessageBubble(
-                    key: ValueKey(
-                      item is WaveRunItem ? item.waves.first.id : message.id,
-                    ),
+                    key: ValueKey(switch (item) {
+                      WaveRunItem(:final waves) => waves.first.id,
+                      PhotoMosaicItem(:final photos) => photos.first.id,
+                      _ => message.id,
+                    }),
                     waveCount: item is WaveRunItem ? item.waves.length : 1,
+                    mosaic: item is PhotoMosaicItem ? item.photos : null,
                     profileId: _id,
                     message: message,
                     otherName: profile.name,
                     showReadReceipt: showReceipts,
-                    groupedWithNext:
-                        item is MessageItem && item.groupedWithNext,
-                    groupedWithPrevious:
-                        item is MessageItem && item.groupedWithPrevious,
+                    groupedWithNext: switch (item) {
+                      MessageItem(:final groupedWithNext) ||
+                      PhotoMosaicItem(
+                        :final groupedWithNext,
+                      ) => groupedWithNext,
+                      _ => false,
+                    },
+                    groupedWithPrevious: switch (item) {
+                      MessageItem(:final groupedWithPrevious) ||
+                      PhotoMosaicItem(
+                        :final groupedWithPrevious,
+                      ) => groupedWithPrevious,
+                      _ => false,
+                    },
                     onLongPress: message.fromMe && !message.unsent
                         ? () => _unsend(message)
                         : null,
@@ -449,18 +464,15 @@ class _ChatViewState extends ConsumerState<_ChatView> {
                 },
               ),
             ),
-            _Composer(
+            Composer(
               controller: _composer,
               onSend: _send,
               onTyping: () => ref.read(chatProvider.notifier).typing(_id),
-              onAlbum: () => context.push(AppRoutes.shareAlbum(_id)),
-              onLocation: _shareLocation,
-              onQuickPhrases: _quickPhrases,
-              onAttach: _recorder == null ? null : _attach,
-              onVoice: _recorder == null ? null : _startVoice,
+              onAttach: _attach,
+              onVoiceStart: _recorder == null ? null : _startVoice,
+              onVoiceStop: _stopVoice,
+              onVoiceCancel: _cancelVoice,
               recording: _recording,
-              onStopVoice: _stopVoice,
-              onCancelVoice: _cancelVoice,
             ),
           ],
         ),
@@ -468,146 +480,3 @@ class _ChatViewState extends ConsumerState<_ChatView> {
     );
   }
 }
-
-class _Composer extends StatelessWidget {
-  const _Composer({
-    required this.controller,
-    required this.onSend,
-    required this.onTyping,
-    required this.onAlbum,
-    required this.onLocation,
-    required this.onQuickPhrases,
-    required this.onAttach,
-    required this.onVoice,
-    required this.recording,
-    required this.onStopVoice,
-    required this.onCancelVoice,
-  });
-
-  final TextEditingController controller;
-  final VoidCallback onSend;
-  final VoidCallback onTyping;
-  final VoidCallback onAlbum;
-  final VoidCallback onLocation;
-  final VoidCallback onQuickPhrases;
-
-  /// Photo or video; null when there's no server (demo mode).
-  final VoidCallback? onAttach;
-
-  /// Starts a voice note; null when there's no server (demo mode).
-  final VoidCallback? onVoice;
-
-  /// Whether a voice note is being recorded.
-  final bool recording;
-  final VoidCallback onStopVoice;
-  final VoidCallback onCancelVoice;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              IconButton(
-                tooltip: onAttach == null
-                    ? l10n.photoTooltip
-                    : l10n.attachTooltip,
-                onPressed: recording ? null : onAttach,
-                icon: const Icon(Icons.photo_camera_outlined),
-              ),
-              IconButton(
-                tooltip: l10n.albumTooltip,
-                onPressed: onAlbum,
-                icon: const Icon(Icons.photo_library_outlined),
-              ),
-              IconButton(
-                tooltip: l10n.locationTooltip,
-                onPressed: onLocation,
-                icon: const Icon(Icons.place_outlined),
-              ),
-              IconButton(
-                tooltip: l10n.quickPhrasesTooltip,
-                onPressed: onQuickPhrases,
-                icon: const Icon(Icons.bolt_outlined),
-              ),
-              if (onVoice != null && !recording)
-                IconButton(
-                  tooltip: l10n.voiceTooltip,
-                  onPressed: onVoice,
-                  icon: const Icon(Icons.mic_none),
-                ),
-            ],
-          ),
-          if (recording)
-            Row(
-              children: [
-                IconButton(
-                  tooltip: l10n.voiceCancelTooltip,
-                  onPressed: onCancelVoice,
-                  icon: const Icon(Icons.delete_outline),
-                ),
-                Icon(Icons.fiber_manual_record, color: scheme.error, size: 14),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    l10n.recording,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                ),
-                IconButton.filled(
-                  tooltip: l10n.voiceStopTooltip,
-                  onPressed: onStopVoice,
-                  style: IconButton.styleFrom(
-                    backgroundColor: scheme.primary,
-                    foregroundColor: scheme.onPrimary,
-                    minimumSize: const Size(48, 48),
-                  ),
-                  icon: const Icon(Icons.send),
-                ),
-              ],
-            )
-          else
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    minLines: 1,
-                    maxLines: 4,
-                    textCapitalization: TextCapitalization.sentences,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => onSend(),
-                    onChanged: (text) {
-                      if (text.isNotEmpty) onTyping();
-                    },
-                    decoration: InputDecoration(
-                      hintText: l10n.messageHint,
-                      labelText: l10n.messageLabel,
-                      floatingLabelBehavior: FloatingLabelBehavior.never,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  tooltip: l10n.sendTooltip,
-                  onPressed: onSend,
-                  style: IconButton.styleFrom(
-                    backgroundColor: scheme.primary,
-                    foregroundColor: scheme.onPrimary,
-                    minimumSize: const Size(48, 48),
-                  ),
-                  icon: const Icon(Icons.send),
-                ),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-enum _Attachment { library, camera, viewOnce, video }
