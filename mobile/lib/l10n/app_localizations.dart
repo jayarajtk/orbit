@@ -886,6 +886,18 @@ abstract class AppLocalizations {
   /// **'You waved'**
   String get waveOut;
 
+  /// No description provided for @waveInCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} waved ×{count}'**
+  String waveInCount(String name, int count);
+
+  /// No description provided for @waveOutCount.
+  ///
+  /// In en, this message translates to:
+  /// **'You waved ×{count}'**
+  String waveOutCount(int count);
+
   /// No description provided for @locationCard.
   ///
   /// In en, this message translates to:

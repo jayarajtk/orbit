@@ -449,6 +449,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get waveOut => 'You waved';
 
   @override
+  String waveInCount(String name, int count) {
+    return '$name waved ×$count';
+  }
+
+  @override
+  String waveOutCount(int count) {
+    return 'You waved ×$count';
+  }
+
+  @override
   String locationCard(int minutes) {
     return 'Live location · $minutes min';
   }

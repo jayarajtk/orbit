@@ -9,6 +9,7 @@ import 'package:orbit/core/widgets/empty_state.dart';
 import 'package:orbit/core/widgets/profile_avatar.dart';
 import 'package:orbit/features/chat/domain/message.dart';
 import 'package:orbit/features/chat/presentation/chat_controller.dart';
+import 'package:orbit/features/chat/presentation/chat_items.dart';
 import 'package:orbit/features/chat/presentation/message_bubble.dart';
 import 'package:orbit/features/discovery/domain/profile.dart';
 import 'package:orbit/features/discovery/presentation/discovery_providers.dart';
@@ -56,6 +57,14 @@ class ChatScreen extends ConsumerWidget {
 }
 
 enum _ChatMenu { profile, mute, safety }
+
+/// The message a bubble for [item] acts on (the newest wave of a run), or
+/// null for items that are not drawn as a bubble.
+Message? _bubbleMessage(ChatItem item) => switch (item) {
+  MessageItem(:final message) => message,
+  WaveRunItem(:final waves) => waves.last,
+  DaySeparatorItem() || PhotoMosaicItem() => null,
+};
 
 class _ChatView extends ConsumerStatefulWidget {
   const _ChatView({required this.profile});
@@ -280,7 +289,7 @@ class _ChatViewState extends ConsumerState<_ChatView> {
         ? null
         : ref.watch(voiceRecorderProvider);
     final conversation = ref.watch(chatProvider)[_id];
-    final messages = conversation?.messages ?? const <Message>[];
+    final items = chatItems(conversation?.messages ?? const <Message>[]);
     final typing = ref.watch(typingProvider).contains(_id);
     final showReceipts = ref.watch(
       settingsProvider.select((s) => s.readReceipts),
@@ -349,7 +358,7 @@ class _ChatViewState extends ConsumerState<_ChatView> {
               child: ListView.builder(
                 reverse: true,
                 padding: const EdgeInsets.all(12),
-                itemCount: messages.length + (typing ? 1 : 0),
+                itemCount: items.length + (typing ? 1 : 0),
                 itemBuilder: (context, index) {
                   if (typing && index == 0) {
                     return Padding(
@@ -361,14 +370,19 @@ class _ChatViewState extends ConsumerState<_ChatView> {
                     );
                   }
                   final position = index - (typing ? 1 : 0);
-                  final message = messages[messages.length - 1 - position];
+                  final item = items[items.length - 1 - position];
+                  final message = _bubbleMessage(item);
+                  if (message == null) return const SizedBox.shrink();
                   final isNewestMine =
                       message.fromMe &&
-                      !messages
-                          .skip(messages.length - position)
-                          .any((m) => m.fromMe);
+                      !items
+                          .skip(items.length - position)
+                          .any((i) => _bubbleMessage(i)?.fromMe ?? false);
                   return MessageBubble(
-                    key: ValueKey(message.id),
+                    key: ValueKey(
+                      item is WaveRunItem ? item.waves.first.id : message.id,
+                    ),
+                    waveCount: item is WaveRunItem ? item.waves.length : 1,
                     profileId: _id,
                     message: message,
                     otherName: profile.name,

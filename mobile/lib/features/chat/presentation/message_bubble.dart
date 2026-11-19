@@ -12,6 +12,7 @@ class MessageBubble extends StatelessWidget {
     required this.otherName,
     required this.showStatus,
     required this.showReadReceipt,
+    this.waveCount = 1,
     this.onLongPress,
     this.onTap,
     super.key,
@@ -31,6 +32,10 @@ class MessageBubble extends StatelessWidget {
 
   /// Whether read receipts are enabled.
   final bool showReadReceipt;
+
+  /// How many waves this bubble stands for, when [message] is the newest
+  /// of a run of waves.
+  final int waveCount;
 
   /// Long-press action (unsend), if allowed.
   final VoidCallback? onLongPress;
@@ -67,7 +72,12 @@ class MessageBubble extends StatelessWidget {
         ),
         MessageKind.wave => _IconLine(
           icon: Icons.waving_hand_outlined,
-          text: mine ? l10n.waveOut : l10n.waveIn(otherName),
+          text: switch ((mine, waveCount > 1)) {
+            (true, true) => l10n.waveOutCount(waveCount),
+            (true, false) => l10n.waveOut,
+            (false, true) => l10n.waveInCount(otherName, waveCount),
+            (false, false) => l10n.waveIn(otherName),
+          },
           color: foreground,
         ),
         MessageKind.location => _IconLine(
