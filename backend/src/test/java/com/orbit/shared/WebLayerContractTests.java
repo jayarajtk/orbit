@@ -42,6 +42,17 @@ class WebLayerContractTests {
     }
 
     @Test
+    void unauthorizedResponseIsProblemJsonAndKeepsBearerChallenge() {
+      var result = mvc.get().uri("/api/v1/probe/ok").exchange();
+
+      assertThat(result)
+          .hasStatus(HttpStatus.UNAUTHORIZED)
+          .hasContentTypeCompatibleWith(PROBLEM_JSON);
+      assertThat(result.getResponse().getHeader("WWW-Authenticate")).startsWith("Bearer");
+      assertThat(result).bodyJson().extractingPath("$.status").isEqualTo(401);
+    }
+
+    @Test
     void acceptsRequestsWithValidToken() {
       assertThat(mvc.get().uri("/api/v1/probe/ok").with(jwt())).hasStatusOk();
     }

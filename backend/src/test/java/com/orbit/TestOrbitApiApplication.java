@@ -10,7 +10,12 @@ public class TestOrbitApiApplication {
 
   public static void main(String[] args) {
     SpringApplication.from(OrbitApiApplication::main)
-        .with(TestcontainersConfiguration.class, LocalOidcConfiguration.class)
+        .with(
+            TestcontainersConfiguration.class,
+            LocalOidcConfiguration.class,
+            LocalSeedData.class,
+            LocalSeedReports.class,
+            LocalSeedBot.class)
         .withAdditionalProfiles("local")
         .run(args);
   }

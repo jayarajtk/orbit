@@ -3,7 +3,8 @@
 #   SPRING_DATA_REDIS_URL
 #   SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI
 #   SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_AUDIENCES
-# Startup fails fast when the datasource or the OIDC issuer is missing.
+#   ORBIT_MEDIA_BUCKET, ORBIT_MEDIA_REGION (S3 credentials come from the AWS default chain)
+# Startup fails fast when the datasource, the OIDC issuer or the media bucket is missing.
 spring:
   application:
     name: orbit-api
@@ -35,3 +36,7 @@ management:
       probes:
         enabled: true
       show-details: never
+
+orbit:
+  media:
+    region: us-east-1

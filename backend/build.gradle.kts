@@ -32,6 +32,16 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
 	implementation("org.springframework.boot:spring-boot-starter-websocket")
 	implementation("org.flywaydb:flyway-database-postgresql")
+	// H3 hexagonal grid for location snapping (ADR-0003).
+	implementation("com.uber:h3:4.5.1")
+	// S3 client and presigner for media storage (MinIO locally, S3 in the cloud).
+	implementation(platform("software.amazon.awssdk:bom:2.57.0"))
+	implementation("software.amazon.awssdk:s3") {
+		// One HTTP client is enough: the lightweight JDK-based one below.
+		exclude(group = "software.amazon.awssdk", module = "apache-client")
+		exclude(group = "software.amazon.awssdk", module = "netty-nio-client")
+	}
+	implementation("software.amazon.awssdk:url-connection-client")
 	implementation("org.springframework.modulith:spring-modulith-observability-api")
 	implementation("org.springframework.modulith:spring-modulith-starter-core")
 	implementation("org.springframework.modulith:spring-modulith-starter-jpa")
