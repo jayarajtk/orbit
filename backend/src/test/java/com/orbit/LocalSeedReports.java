@@ -39,16 +39,17 @@ class LocalSeedReports {
       say(chat, 3, 5, "Not interested, sorry.");
       say(chat, 5, 3, "why are you even on here then. answer me");
       safety.report(
-          "seed-03", id(5), ReportReason.HARASSMENT, "Kept pushing after I said no.", true);
+          "seed-03", id(5), ReportReason.HARASSMENT, "Kept pushing after I said no.", true, null);
       // Kai (4) thinks Theo (7) is using someone else's photos.
       say(chat, 4, 7, "Your profile looks familiar, are those your photos?");
       say(chat, 7, 4, "Of course. Want to move this to another app?");
-      safety.report("seed-04", id(7), ReportReason.FAKE, "Photos look like a model's.", false);
+      safety.report(
+          "seed-04", id(7), ReportReason.FAKE, "Photos look like a model's.", false, null);
       // Sam (2) worries Leo (24) may be under 18.
       say(chat, 2, 24, "Hey, what are you studying?");
       say(chat, 24, 2, "Still in school actually, finishing year 12");
       safety.report(
-          "seed-02", id(24), ReportReason.UNDERAGE, "Says they're still at school.", false);
+          "seed-02", id(24), ReportReason.UNDERAGE, "Says they're still at school.", false, null);
       log.info("Seeded 3 local reports for the moderation queue");
     };
   }

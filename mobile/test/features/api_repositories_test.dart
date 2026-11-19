@@ -231,6 +231,24 @@ void main() {
         'alsoBlock': true,
       });
     });
+
+    test('reports name the status only when one is given', () async {
+      final adapter = FakeAdapter({
+        'POST /reports': (202, {'id': 'r1'}),
+      });
+      await ApiSafetyRepository(dioWith(adapter)).report(
+        'a1',
+        ReportReason.photos,
+        alsoBlock: false,
+        statusId: 's1',
+      );
+      expect(adapter.requests.single.data, {
+        'accountId': 'a1',
+        'reason': 'PHOTOS',
+        'alsoBlock': false,
+        'statusId': 's1',
+      });
+    });
   });
 
   group('FavoritesNotifier', () {

@@ -1,13 +1,22 @@
 package com.orbit.moderation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doReturn;
 
 import com.orbit.MutableClock;
 import com.orbit.TestcontainersConfiguration;
 import com.orbit.identity.application.SuspensionLifter;
+import com.orbit.media.MediaApi;
+import com.orbit.shared.PhotoUploads;
+import com.orbit.status.application.StatusReaper;
+import java.io.IOException;
 import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -31,6 +40,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -61,6 +71,8 @@ class ModerationIntegrationTests {
   @Autowired JdbcClient jdbc;
   @Autowired MutableClock clock;
   @Autowired SuspensionLifter lifter;
+  @Autowired StatusReaper reaper;
+  @MockitoSpyBean MediaApi mediaApi;
 
   @LocalServerPort int port;
 
@@ -72,6 +84,8 @@ class ModerationIntegrationTests {
         List.of(
             "admin_audit",
             "event_publication",
+            "status_view",
+            "status",
             "message",
             "conversation_member",
             "conversation",
@@ -166,6 +180,37 @@ class ModerationIntegrationTests {
                 .formatted(ids.get(subject), reason))
         .expectStatus()
         .isAccepted();
+  }
+
+  private String postStatus(String who, String caption) throws IOException, InterruptedException {
+    String mediaId = PhotoUploads.upload(client, who, "STATUS_PHOTO");
+    return body(
+            post(
+                    who,
+                    "/api/v1/me/statuses",
+                    "{\"mediaId\":\"%s\",\"caption\":\"%s\"}".formatted(mediaId, caption))
+                .expectStatus()
+                .isCreated(),
+            Map.class)
+        .get("id")
+        .toString();
+  }
+
+  private void reportStatus(String reporter, String subject, String statusId) {
+    post(
+            reporter,
+            "/api/v1/reports",
+            "{\"accountId\":\"%s\",\"reason\":\"HARASSMENT\",\"statusId\":\"%s\"}"
+                .formatted(ids.get(subject), statusId))
+        .expectStatus()
+        .isAccepted();
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<Map<String, Object>> evidenceOf(String subject) {
+    Map<String, Object> report =
+        (Map<String, Object>) ((List<?>) member(subject).get("reports")).getFirst();
+    return (List<Map<String, Object>>) report.get("evidence");
   }
 
   private RestTestClient.ResponseSpec act(String subject, String json) {
@@ -302,6 +347,64 @@ class ModerationIntegrationTests {
           .extracting(m -> m.get("text"))
           .containsExactly("you again", "please stop", "threatening words");
       assertThat(evidence).extracting(m -> m.get("fromSubject")).containsExactly(true, false, true);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void reportingAStatusKeepsItAsEvidence() throws Exception {
+      String statusId = postStatus("bob", "my caption");
+      reportStatus("alice", "bob", statusId);
+      clock.advance(Duration.ofHours(24).plusSeconds(1));
+      reaper.reap();
+      await()
+          .atMost(Duration.ofSeconds(5))
+          .untilAsserted(() ->
+              assertThat(jdbc.sql("SELECT count(*) FROM status").query(Long.class).single())
+                  .isZero());
+
+      List<Map<String, Object>> evidence = evidenceOf("bob");
+
+      assertThat(evidence)
+          .singleElement()
+          .satisfies(row -> {
+            assertThat(row)
+                .containsEntry("kind", "STATUS")
+                .containsEntry("text", "my caption")
+                .containsEntry("fromSubject", true)
+                .containsEntry("messageId", statusId);
+            Map<String, Object> media = (Map<String, Object>) row.get("media");
+            assertThat(media).containsEntry("kind", "PHOTO");
+            HttpResponse<Void> fetched =
+                HttpClient.newHttpClient()
+                    .send(
+                        HttpRequest.newBuilder(URI.create((String) media.get("url"))).build(),
+                        HttpResponse.BodyHandlers.discarding());
+            assertThat(fetched.statusCode()).isEqualTo(200);
+          });
+    }
+
+    @Test
+    void aStatusWhosePhotoIsGoneIsStillKeptWithoutIt() throws Exception {
+      String statusId = postStatus("bob", "my caption");
+      doReturn(false).when(mediaApi).holdAsEvidence(org.mockito.ArgumentMatchers.any());
+
+      reportStatus("alice", "bob", statusId);
+
+      assertThat(evidenceOf("bob"))
+          .singleElement()
+          .satisfies(row -> {
+            assertThat(row).containsEntry("kind", "STATUS").containsEntry("text", "my caption");
+            assertThat(row.get("media")).isNull();
+          });
+    }
+
+    @Test
+    void statusIdOfAnotherMemberIsIgnored() throws Exception {
+      String carolsStatus = postStatus("carol", "not bob's");
+
+      reportStatus("alice", "bob", carolsStatus);
+
+      assertThat(evidenceOf("bob")).isEmpty();
     }
 
     @Test

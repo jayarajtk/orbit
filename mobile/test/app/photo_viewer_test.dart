@@ -23,6 +23,7 @@ class _AcceptingSafety implements SafetyRepository {
     String id,
     ReportReason reason, {
     required bool alsoBlock,
+    String? statusId,
   }) async {}
 
   @override

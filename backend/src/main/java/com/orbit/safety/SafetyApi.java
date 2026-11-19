@@ -73,8 +73,11 @@ public interface SafetyApi {
   /**
    * Published inside the transaction that files a report, so evidence is copied before anything can
    * be unsent.
+   *
+   * @param statusId the subject's status the report is about, or null
    */
-  record ReportFiled(UUID reportId, UUID reporterId, UUID subjectId, String reason) {}
+  record ReportFiled(
+      UUID reportId, UUID reporterId, UUID subjectId, String reason, UUID statusId) {}
 
   /**
    * Published when one member blocks another, so chat can close the conversation and end calls.

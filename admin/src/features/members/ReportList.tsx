@@ -59,6 +59,7 @@ function Transcript({ evidence, memberName, reporterName }: TranscriptProps) {
 
 function MessageBody({ message }: { message: Evidence }) {
   if (message.kind === 'UNSENT') return <p className="meta">Unsent before the report</p>;
+  if (message.kind === 'STATUS') return <StatusBody message={message} />;
   if (message.media) {
     return message.media.kind === 'PHOTO' ? (
       <a href={message.media.url} target="_blank" rel="noreferrer noopener">
@@ -76,4 +77,25 @@ function MessageBody({ message }: { message: Evidence }) {
   }
   if (message.text) return <p>{message.text}</p>;
   return <p className="meta">{humanize(message.kind)}</p>;
+}
+
+/** A status the member posted, kept with its photo (if still held) and caption. */
+function StatusBody({ message }: { message: Evidence }) {
+  return (
+    <>
+      <p className="meta">Posted as a status</p>
+      {message.media ? (
+        <a href={message.media.url} target="_blank" rel="noreferrer noopener">
+          <img
+            className="evidence-photo"
+            src={message.media.thumbUrl ?? message.media.url}
+            alt="Posted as a status"
+          />
+        </a>
+      ) : (
+        <p className="meta">Photo no longer available</p>
+      )}
+      {message.text && <p>{message.text}</p>}
+    </>
+  );
 }

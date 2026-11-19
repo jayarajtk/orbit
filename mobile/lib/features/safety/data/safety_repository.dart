@@ -35,11 +35,13 @@ abstract interface class SafetyRepository {
   /// Removes the block on [id].
   Future<void> unblock(String id);
 
-  /// Reports [id]; with [alsoBlock] the server blocks them too.
+  /// Reports [id]; with [alsoBlock] the server blocks them too. A [statusId]
+  /// of one of their statuses is kept as evidence.
   Future<void> report(
     String id,
     ReportReason reason, {
     required bool alsoBlock,
+    String? statusId,
   });
 
   /// Members the user blocked, as id → display name.
@@ -69,6 +71,7 @@ class DemoSafetyRepository implements SafetyRepository {
     String id,
     ReportReason reason, {
     required bool alsoBlock,
+    String? statusId,
   }) async {}
 
   @override
@@ -95,6 +98,7 @@ class ApiSafetyRepository implements SafetyRepository {
     String id,
     ReportReason reason, {
     required bool alsoBlock,
+    String? statusId,
   }) => guardApi(
     () => _dio.post<void>(
       '/reports',
@@ -102,6 +106,7 @@ class ApiSafetyRepository implements SafetyRepository {
         'accountId': id,
         'reason': reason.apiValue,
         'alsoBlock': alsoBlock,
+        'statusId': ?statusId,
       },
     ),
   );

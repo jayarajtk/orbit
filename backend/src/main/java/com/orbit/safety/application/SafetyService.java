@@ -55,18 +55,24 @@ public class SafetyService implements SafetyApi {
   }
 
   /**
-   * Files a report, optionally also blocking. Returns the report id.
+   * Files a report, optionally also blocking. Returns the report id. {@code statusId}, if not null,
+   * names a status of the target to keep as evidence.
    *
    * @throws InvalidTargetException if the target is the caller or does not exist
    */
   @Transactional
   public UUID report(
-      String callerSubject, UUID targetId, ReportReason reason, String details, boolean block) {
+      String callerSubject,
+      UUID targetId,
+      ReportReason reason,
+      String details,
+      boolean block,
+      UUID statusId) {
     UUID me = identity.require(callerSubject).id();
     requireOtherMember(me, targetId);
     UUID reportId = store.fileReport(me, targetId, reason, details.strip(), clock.instant());
     log.info("Report {} filed against account {} for {}", reportId, targetId, reason);
-    events.publishEvent(new ReportFiled(reportId, me, targetId, reason.name()));
+    events.publishEvent(new ReportFiled(reportId, me, targetId, reason.name(), statusId));
     if (block && store.block(me, targetId, clock.instant())) {
       events.publishEvent(new MemberBlocked(me, targetId));
     }

@@ -42,7 +42,8 @@ class SafetyController {
       @NotNull UUID accountId,
       @NotNull ReportReason reason,
       @Size(max = 500) String details,
-      Boolean alsoBlock) {}
+      Boolean alsoBlock,
+      UUID statusId) {}
 
   record ReportResponse(UUID id) {}
 
@@ -68,7 +69,8 @@ class SafetyController {
             request.accountId(),
             request.reason(),
             request.details() == null ? "" : request.details(),
-            Boolean.TRUE.equals(request.alsoBlock()));
+            Boolean.TRUE.equals(request.alsoBlock()),
+            request.statusId());
     return ResponseEntity.accepted().body(new ReportResponse(id));
   }
 
