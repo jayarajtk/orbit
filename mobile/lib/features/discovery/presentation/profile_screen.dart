@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:orbit/app/router.dart';
 import 'package:orbit/core/labels.dart';
 import 'package:orbit/core/widgets/empty_state.dart';
+import 'package:orbit/core/widgets/glass_icon_button.dart';
 import 'package:orbit/core/widgets/profile_avatar.dart';
 import 'package:orbit/features/chat/presentation/chat_controller.dart';
 import 'package:orbit/features/discovery/domain/profile.dart';
@@ -99,18 +100,23 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
+        leading: GlassIconButton(
+          icon: Icons.arrow_back,
+          tooltip: l10n.backTooltip,
+          onPressed: () => Navigator.maybePop(context),
+        ),
         actions: [
-          IconButton(
+          GlassIconButton(
             tooltip: isFavorite ? l10n.favoriteRemove : l10n.favoriteAdd,
-            isSelected: isFavorite,
-            icon: const Icon(Icons.star_border),
-            selectedIcon: const Icon(Icons.star),
+            selected: isFavorite,
+            icon: Icons.star_border,
+            selectedIcon: Icons.star,
             onPressed: () =>
                 ref.read(favoritesProvider.notifier).toggle(_profile.id),
           ),
-          IconButton(
+          GlassIconButton(
             tooltip: l10n.moreActions,
-            icon: const Icon(Icons.more_horiz),
+            icon: Icons.more_horiz,
             onPressed: _openSafety,
           ),
         ],
@@ -137,6 +143,26 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                           : null,
                       size: double.infinity,
                       square: true,
+                    ),
+                  ),
+                ),
+                const Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 120,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Color(0x73000000), // photo-overlay
+                            Color(0x00000000), // photo-overlay
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),

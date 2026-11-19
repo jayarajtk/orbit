@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:orbit/core/widgets/glass_icon_button.dart';
 import 'package:orbit/features/discovery/data/dummy_profiles.dart';
 import 'package:orbit/features/discovery/data/fake_profile_repository.dart';
 import 'package:orbit/features/discovery/domain/discovery_filters.dart';
@@ -68,6 +69,28 @@ void main() {
       find.bySemanticsLabel(AppLocalizationsEn().photoOf(1, 2)),
       findsOneWidget,
     );
+  });
+
+  testWidgets('profile app bar buttons sit on glass backings', (tester) async {
+    await pumpOrbit(tester);
+    await onboard(tester);
+
+    await tapText(tester, 'Alex 27');
+
+    expect(find.byType(GlassIconButton), findsNWidgets(3));
+    for (final tooltip in [
+      'Back',
+      'Add to favorites',
+      'More: block or report',
+    ]) {
+      expect(
+        find.descendant(
+          of: find.byType(GlassIconButton),
+          matching: find.byTooltip(tooltip),
+        ),
+        findsOneWidget,
+      );
+    }
   });
 
   testWidgets('the Online chip hides offline members', (tester) async {
