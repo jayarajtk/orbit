@@ -387,6 +387,10 @@ class _PhotoPager extends StatelessWidget {
         Positioned.fill(
           child: LayoutBuilder(
             builder: (context, constraints) => GestureDetector(
+              // A screen reader focuses each labelled page, which carries
+              // its own open action, so this tap is not offered a second time
+              // on a node with no label.
+              excludeFromSemantics: true,
               behavior: HitTestBehavior.opaque,
               // Edge taps step through the photos; the middle opens the viewer.
               onTapUp: (details) {
@@ -418,7 +422,9 @@ class _PhotoPager extends StatelessWidget {
                     square: true,
                   );
                   return Semantics(
+                    button: true,
                     label: l10n.photoOf(index + 1, count),
+                    onTap: onOpen,
                     child: index == 0 && !still
                         ? Hero(tag: _heroTag(profile), child: avatar)
                         : avatar,

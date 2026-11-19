@@ -258,6 +258,24 @@ void main() {
     expect(viewer.items.map((i) => i.mediaId), ['ph1', 'ph2']);
   });
 
+  testWidgets('a screen reader opens the viewer from a profile photo', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await pumpOrbit(tester, profiles: _PhotosRepository());
+    await onboard(tester);
+    await tapText(tester, 'Alex 27');
+
+    tester.semantics.tap(
+      find.semantics.byLabel(AppLocalizationsEn().photoOf(1, 2)),
+    );
+    await tester.pumpAndSettle();
+
+    final viewer = tester.widget<PhotoViewer>(find.byType(PhotoViewer));
+    expect(viewer.initialIndex, 0);
+    semantics.dispose();
+  });
+
   testWidgets('profile app bar buttons sit on glass backings', (tester) async {
     await pumpOrbit(tester);
     await onboard(tester);
