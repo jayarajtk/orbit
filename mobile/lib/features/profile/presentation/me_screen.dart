@@ -51,83 +51,94 @@ class MeScreen extends ConsumerWidget {
     ];
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.meTitle),
-        actions: [
-          IconButton(
-            tooltip: l10n.settingsTooltip,
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () => context.push(AppRoutes.settings),
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar.large(
+            title: Text(l10n.meTitle),
+            actions: [
+              IconButton(
+                tooltip: l10n.settingsTooltip,
+                icon: const Icon(Icons.settings_outlined),
+                onPressed: () => context.push(AppRoutes.settings),
+              ),
+            ],
           ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Row(
-            children: [
-              MeAvatar(onAddStatus: () => addStatus(context, ref)),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              16,
+              16,
+              16 + MediaQuery.paddingOf(context).bottom,
+            ),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            l10n.nameAge(me.displayName, me.age),
-                            style: theme.textTheme.titleLarge,
+                    MeAvatar(onAddStatus: () => addStatus(context, ref)),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  l10n.nameAge(me.displayName, me.age),
+                                  style: theme.textTheme.titleLarge,
+                                ),
+                              ),
+                              if (hasPlus) ...[
+                                const SizedBox(width: 8),
+                                Chip(
+                                  label: Text(l10n.orbitPlus),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              ],
+                            ],
                           ),
-                        ),
-                        if (hasPlus) ...[
-                          const SizedBox(width: 8),
-                          Chip(
-                            label: Text(l10n.orbitPlus),
-                            visualDensity: VisualDensity.compact,
+                          const SizedBox(height: 8),
+                          LinearProgressIndicator(
+                            value: me.completionPercent / 100,
+                            borderRadius: BorderRadius.circular(3),
+                            minHeight: 6,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            l10n.profileComplete(me.completionPercent),
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ],
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    LinearProgressIndicator(
-                      value: me.completionPercent / 100,
-                      borderRadius: BorderRadius.circular(3),
-                      minHeight: 6,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      l10n.profileComplete(me.completionPercent),
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Card(
-            margin: EdgeInsets.zero,
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.motion_photos_on_outlined),
-                  title: Text(l10n.statusMine),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => hasStatus
-                      ? context.push(AppRoutes.myStatuses)
-                      : addStatus(context, ref),
-                ),
-                for (final (icon, label, route) in items)
-                  ListTile(
-                    leading: Icon(icon),
-                    title: Text(label),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => context.push(route),
+                const SizedBox(height: 24),
+                Card(
+                  margin: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.motion_photos_on_outlined),
+                        title: Text(l10n.statusMine),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => hasStatus
+                            ? context.push(AppRoutes.myStatuses)
+                            : addStatus(context, ref),
+                      ),
+                      for (final (icon, label, route) in items)
+                        ListTile(
+                          leading: Icon(icon),
+                          title: Text(label),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => context.push(route),
+                        ),
+                    ],
                   ),
-              ],
+                ),
+              ]),
             ),
           ),
         ],

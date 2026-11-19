@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:orbit/core/widgets/glass_bar.dart';
 import 'package:orbit/features/chat/presentation/chat_controller.dart';
 import 'package:orbit/features/standing/presentation/warning_notice.dart';
 import 'package:orbit/l10n/app_localizations.dart';
@@ -36,31 +37,35 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     final l10n = AppLocalizations.of(context);
     final unread = ref.watch(unreadTotalProvider);
     return Scaffold(
+      extendBody: true,
       body: shell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: shell.currentIndex,
-        onDestinationSelected: (index) => shell.goBranch(
-          index,
-          initialLocation: index == shell.currentIndex,
-        ),
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(Icons.grid_view_outlined),
-            label: l10n.tabNearby,
+      bottomNavigationBar: GlassBar(
+        child: NavigationBar(
+          indicatorColor: Colors.transparent,
+          selectedIndex: shell.currentIndex,
+          onDestinationSelected: (index) => shell.goBranch(
+            index,
+            initialLocation: index == shell.currentIndex,
           ),
-          NavigationDestination(
-            icon: Badge.count(
-              count: unread,
-              isLabelVisible: unread > 0,
-              child: const Icon(Icons.chat_bubble_outline),
+          destinations: [
+            NavigationDestination(
+              icon: const Icon(Icons.grid_view_outlined),
+              label: l10n.tabNearby,
             ),
-            label: l10n.tabInbox,
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.person_outline),
-            label: l10n.tabMe,
-          ),
-        ],
+            NavigationDestination(
+              icon: Badge.count(
+                count: unread,
+                isLabelVisible: unread > 0,
+                child: const Icon(Icons.chat_bubble_outline),
+              ),
+              label: l10n.tabInbox,
+            ),
+            NavigationDestination(
+              icon: const Icon(Icons.person_outline),
+              label: l10n.tabMe,
+            ),
+          ],
+        ),
       ),
     );
   }

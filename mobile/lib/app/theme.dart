@@ -216,24 +216,52 @@ ThemeData buildOrbitTheme(Brightness brightness) {
         shape: buttonShape,
         foregroundColor: scheme.onSurface,
         backgroundColor: scheme.surfaceContainer,
-        side: BorderSide(color: scheme.outline),
+        side: BorderSide.none,
         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
       ),
     ),
+    textTheme: const TextTheme(
+      headlineMedium: TextStyle(fontSize: 34, fontWeight: FontWeight.w700),
+      titleLarge: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+      bodyLarge: TextStyle(fontSize: 17),
+      bodyMedium: TextStyle(fontSize: 17),
+      bodySmall: TextStyle(fontSize: 15),
+    ),
+    listTileTheme: const ListTileThemeData(
+      subtitleTextStyle: TextStyle(fontSize: 15),
+    ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: scheme.surface,
-      indicatorColor: scheme.surfaceContainer,
+      // The frosted `GlassBar` supplies the fill, so the bar is clear.
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      indicatorColor: Colors.transparent,
+      iconTheme: WidgetStateProperty.resolveWith(
+        (states) => IconThemeData(
+          color: states.contains(WidgetState.selected)
+              ? tokens.accent
+              : tokens.textMuted,
+        ),
+      ),
+      labelTextStyle: WidgetStateProperty.resolveWith(
+        (states) => TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+          color: states.contains(WidgetState.selected)
+              ? tokens.accent
+              : tokens.textMuted,
+        ),
+      ),
     ),
     appBarTheme: AppBarTheme(
       backgroundColor: scheme.surface,
+      scrolledUnderElevation: 0,
       surfaceTintColor: Colors.transparent,
     ),
     cardTheme: CardThemeData(
       color: scheme.surfaceContainer,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: scheme.outline),
-      ),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
     chipTheme: ChipThemeData(
       backgroundColor: scheme.surfaceContainer,
@@ -257,6 +285,9 @@ ThemeData buildOrbitTheme(Brightness brightness) {
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: scheme.surfaceContainer,
       surfaceTintColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
     ),
     dialogTheme: DialogThemeData(backgroundColor: scheme.surfaceContainer),
     snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),

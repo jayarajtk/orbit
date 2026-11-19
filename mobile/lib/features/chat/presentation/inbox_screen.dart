@@ -64,64 +64,74 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     };
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.tabInbox)),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: SizedBox(
-              width: double.infinity,
-              child: SegmentedButton<_InboxFilter>(
-                showSelectedIcon: false,
-                segments: [
-                  ButtonSegment(
-                    value: _InboxFilter.all,
-                    label: Text(l10n.inboxAll),
-                  ),
-                  ButtonSegment(
-                    value: _InboxFilter.unread,
-                    label: Text(l10n.inboxUnread),
-                  ),
-                  ButtonSegment(
-                    value: _InboxFilter.favorites,
-                    label: Text(l10n.inboxFavorites),
-                  ),
-                ],
-                selected: {_filter},
-                onSelectionChanged: (s) => setState(() => _filter = s.first),
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar.large(title: Text(l10n.tabInbox)),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<_InboxFilter>(
+                  showSelectedIcon: false,
+                  segments: [
+                    ButtonSegment(
+                      value: _InboxFilter.all,
+                      label: Text(l10n.inboxAll),
+                    ),
+                    ButtonSegment(
+                      value: _InboxFilter.unread,
+                      label: Text(l10n.inboxUnread),
+                    ),
+                    ButtonSegment(
+                      value: _InboxFilter.favorites,
+                      label: Text(l10n.inboxFavorites),
+                    ),
+                  ],
+                  selected: {_filter},
+                  onSelectionChanged: (s) => setState(() => _filter = s.first),
+                ),
               ),
             ),
           ),
-          Expanded(
-            child: conversations.isEmpty
-                ? EmptyState(
-                    icon: Icons.chat_bubble_outline,
-                    message: emptyMessage,
-                  )
-                : ListView.builder(
-                    itemCount: conversations.length,
-                    itemBuilder: (context, index) {
-                      final c = conversations[index];
-                      final profile = profiles[c.profileId];
-                      final name = profile?.name ?? l10n.unknownMember;
-                      return Dismissible(
-                        key: ValueKey(c.profileId),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          alignment: AlignmentDirectional.centerEnd,
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          color: Theme.of(context).colorScheme.errorContainer,
-                          child: const Icon(Icons.delete_outline),
-                        ),
-                        onDismissed: (_) => _delete(c, name),
-                        child: _ConversationTile(
-                          conversation: c,
-                          profile: profile,
-                          name: name,
-                        ),
-                      );
-                    },
+          if (conversations.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: EmptyState(
+                icon: Icons.chat_bubble_outline,
+                message: emptyMessage,
+              ),
+            )
+          else
+            SliverList.builder(
+              itemCount: conversations.length,
+              itemBuilder: (context, index) {
+                final c = conversations[index];
+                final profile = profiles[c.profileId];
+                final name = profile?.name ?? l10n.unknownMember;
+                return Dismissible(
+                  key: ValueKey(c.profileId),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    alignment: AlignmentDirectional.centerEnd,
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    child: const Icon(Icons.delete_outline),
                   ),
+                  onDismissed: (_) => _delete(c, name),
+                  child: _ConversationTile(
+                    conversation: c,
+                    profile: profile,
+                    name: name,
+                  ),
+                );
+              },
+            ),
+          // Keeps the last row clear of the frosted bottom bar.
+          SliverPadding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.paddingOf(context).bottom,
+            ),
           ),
         ],
       ),

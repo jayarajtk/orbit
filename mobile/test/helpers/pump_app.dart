@@ -61,7 +61,12 @@ Future<void> pumpOrbit(
 
 /// Scrolls the widget showing [text] into view, taps it and settles.
 Future<void> tapText(WidgetTester tester, String text) async {
-  final target = find.text(text).last;
+  final matches = find.text(text);
+  // A lazy list builds only what is near the viewport, so scroll first.
+  if (matches.evaluate().isEmpty) {
+    await tester.scrollUntilVisible(matches, 100);
+  }
+  final target = matches.last;
   await tester.ensureVisible(target);
   await tester.pumpAndSettle();
   await tester.tap(target);

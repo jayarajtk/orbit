@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers/pump_app.dart';
@@ -84,6 +85,68 @@ void main() {
         ),
       );
       expect((badge.label! as Text).data, '3');
+    });
+  });
+
+  group('frosted bars and large titles', () {
+    testWidgets('bottom bar is frosted and has no pill indicator', (
+      tester,
+    ) async {
+      await pumpOrbit(tester);
+      await onboard(tester);
+
+      expect(
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byType(BackdropFilter),
+        ),
+        findsNothing,
+        reason: 'the blur sits around the bar, not inside it',
+      );
+      expect(
+        find.ancestor(
+          of: find.byType(NavigationBar),
+          matching: find.byType(BackdropFilter),
+        ),
+        findsOneWidget,
+      );
+      final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+      expect(bar.indicatorColor, Colors.transparent);
+    });
+
+    testWidgets('inbox title collapses when scrolled', (tester) async {
+      await pumpOrbit(tester);
+      await onboard(tester);
+      await tapText(tester, 'Inbox');
+      // A short screen, so the three conversations overflow and scroll.
+      tester.view.physicalSize = const Size(1170, 900);
+      await tester.pumpAndSettle();
+
+      double sizeOf(Finder f) =>
+          (tester.renderObject(f) as RenderParagraph).text.style!.fontSize!;
+      final titles = find.descendant(
+        of: find.byType(SliverAppBar),
+        matching: find.text('Inbox'),
+      );
+      final large = titles.first;
+      final compact = titles.last;
+      double compactOpacity() => tester
+          .widget<AnimatedOpacity>(
+            find.ancestor(
+              of: compact,
+              matching: find.byType(AnimatedOpacity),
+            ),
+          )
+          .opacity;
+
+      expect(sizeOf(large), 34);
+      expect(sizeOf(compact), 17);
+      expect(compactOpacity(), 0);
+
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -200));
+      await tester.pumpAndSettle();
+
+      expect(compactOpacity(), 1);
     });
   });
 

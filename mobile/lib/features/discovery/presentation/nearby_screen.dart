@@ -88,7 +88,12 @@ class _Grid extends StatelessWidget {
         if (fresh.isNotEmpty)
           SliverToBoxAdapter(child: _FreshFaces(profiles: fresh)),
         SliverPadding(
-          padding: const EdgeInsets.all(3),
+          padding: EdgeInsets.fromLTRB(
+            3,
+            3,
+            3,
+            3 + MediaQuery.paddingOf(context).bottom,
+          ),
           sliver: SliverGrid.builder(
             itemCount: profiles.length,
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
