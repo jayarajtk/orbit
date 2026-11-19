@@ -409,6 +409,16 @@ Future<void> sendMessage(WidgetTester tester, String text) async {
   await tester.pump();
 }
 
+/// The first photo in the mosaic. The mosaic's own centre is the gap between
+/// its tiles, which a pointer can't hit; the bubble's long press still
+/// receives a press that starts on a tile.
+final Finder _firstMosaicTile = find
+    .descendant(
+      of: find.byType(PhotoMosaic),
+      matching: find.byType(ClipRRect),
+    )
+    .first;
+
 void main() {
   group('chatItems', () {
     test('three consecutive waves from one sender become one run', () {
@@ -1174,7 +1184,7 @@ void main() {
       await tester.tap(find.text('Uploading…'));
       await tester.pumpAndSettle();
 
-      await tester.longPress(find.byType(PhotoMosaic));
+      await tester.longPress(_firstMosaicTile);
       await tester.pumpAndSettle();
       expect(
         find.text('Unsend 1 of 3 photos (2 are past 10 minutes)'),
@@ -1200,7 +1210,7 @@ void main() {
       await tester.tap(find.text('Uploading…'));
       await tester.pumpAndSettle();
 
-      await tester.longPress(find.byType(PhotoMosaic));
+      await tester.longPress(_firstMosaicTile);
       await tester.pumpAndSettle();
 
       expect(
@@ -1217,7 +1227,7 @@ void main() {
       await tester.tap(find.text('Uploading…'));
       await tester.pumpAndSettle();
 
-      await tester.longPress(find.byType(PhotoMosaic));
+      await tester.longPress(_firstMosaicTile);
       await tester.pumpAndSettle();
       expect(find.byType(PhotoMosaic), findsOneWidget);
       expect(find.text('Unsend 3 photos'), findsOneWidget);
