@@ -5,6 +5,7 @@ import com.orbit.chat.application.ChatService;
 import com.orbit.chat.application.ChatService.InvalidMessageException;
 import com.orbit.chat.application.ChatService.RecipientUnavailableException;
 import com.orbit.chat.application.ChatService.SendCommand;
+import com.orbit.chat.application.ChatService.WaveLimitReachedException;
 import com.orbit.chat.domain.MessageKind;
 import com.orbit.chat.infrastructure.LiveSessions;
 import com.orbit.identity.IdentityApi.AccountRequiredException;
@@ -124,6 +125,9 @@ class ChatWebSocketHandler extends TextWebSocketHandler {
       send(out, error("invalid-message", frame.clientMsgId()));
     } catch (MediaUnavailableException e) {
       send(out, error("media-unavailable", frame.clientMsgId()));
+    } catch (WaveLimitReachedException e) {
+      send(
+          out, error("wave-limit", frame.clientMsgId(), Map.of("retryAt", e.retryAt().toString())));
     }
   }
 
@@ -181,7 +185,11 @@ class ChatWebSocketHandler extends TextWebSocketHandler {
   }
 
   private String error(String code, String clientMsgId) {
-    Map<String, Object> fields = new HashMap<>();
+    return error(code, clientMsgId, Map.of());
+  }
+
+  private String error(String code, String clientMsgId, Map<String, Object> extra) {
+    Map<String, Object> fields = new HashMap<>(extra);
     fields.put("code", code);
     if (clientMsgId != null) {
       fields.put("clientMsgId", clientMsgId);

@@ -17,6 +17,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
@@ -24,7 +28,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureRestTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -33,6 +36,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -53,7 +57,6 @@ import tools.jackson.databind.json.JsonMapper;
   ChatIntegrationTests.CapturingPush.class
 })
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@AutoConfigureRestTestClient
 class ChatIntegrationTests {
 
   private static final Instant START = Instant.parse("2026-11-17T12:00:00Z");
@@ -61,13 +64,15 @@ class ChatIntegrationTests {
 
   @MockitoBean JwtDecoder jwtDecoder;
 
-  @Autowired RestTestClient client;
   @Autowired JdbcClient jdbc;
   @Autowired MutableClock clock;
   @Autowired JsonMapper json;
   @Autowired List<PushSender.Push> pushes;
 
   @LocalServerPort int port;
+
+  /** The JDK client ignores Retry-After; Apache's would sleep through a 429's 22-hour wait. */
+  private RestTestClient client;
 
   private final Map<String, String> ids = new HashMap<>();
   private final List<WebSocketSession> sockets = new CopyOnWriteArrayList<>();
@@ -90,6 +95,10 @@ class ChatIntegrationTests {
 
   @BeforeEach
   void setUp() {
+    client =
+        RestTestClient.bindToServer(new JdkClientHttpRequestFactory())
+            .baseUrl("http://localhost:" + port)
+            .build();
     for (String table :
         List.of(
             "event_publication",
@@ -171,6 +180,17 @@ class ChatIntegrationTests {
         from,
         "/api/v1/conversations/" + ids.get(to) + "/messages",
         "{\"clientMsgId\":\"%s\",\"kind\":\"TEXT\",\"text\":\"%s\"}".formatted(clientId, text));
+  }
+
+  private RestTestClient.ResponseSpec sendWave(String from, String to, String clientId) {
+    return post(
+        from,
+        "/api/v1/conversations/" + ids.get(to) + "/messages",
+        "{\"clientMsgId\":\"%s\",\"kind\":\"WAVE\"}".formatted(clientId));
+  }
+
+  private long waveRows() {
+    return jdbc.sql("SELECT count(*) FROM message WHERE kind = 'WAVE'").query(Long.class).single();
   }
 
   /** Opens a chat socket as {@code who}; frames land in the returned queue. */
@@ -503,6 +523,118 @@ class ChatIntegrationTests {
                       .single()
                   == 0);
       assertThat(pushes).hasSize(1);
+    }
+  }
+
+  // --- wave limit ----------------------------------------------------------------------------
+
+  @Nested
+  class WaveLimit {
+
+    private static final Duration WINDOW = Duration.ofHours(24);
+
+    @Test
+    void thirdWaveWithin24hIsRefused() {
+      sendWave("alice", "bob", "w-1").expectStatus().isCreated();
+      clock.advance(Duration.ofHours(1));
+      sendWave("alice", "bob", "w-2").expectStatus().isCreated();
+      clock.advance(Duration.ofHours(1));
+
+      Instant retryAt = START.plus(WINDOW);
+      long retryAfter = Duration.between(clock.instant(), retryAt).toSeconds();
+      sendWave("alice", "bob", "w-3")
+          .expectStatus()
+          .isEqualTo(HttpStatus.TOO_MANY_REQUESTS)
+          .expectHeader()
+          .valueEquals("Retry-After", String.valueOf(retryAfter))
+          .expectBody()
+          .jsonPath("$.type")
+          .isEqualTo("urn:orbit:problem:wave-limit")
+          .jsonPath("$.retryAt")
+          .isEqualTo(retryAt.toString());
+      assertThat(waveRows()).isEqualTo(2);
+    }
+
+    @Test
+    void waveToAnotherMemberIsAllowed() {
+      ids.put("carol", onboard("carol"));
+      sendWave("alice", "bob", "w-1").expectStatus().isCreated();
+      sendWave("alice", "bob", "w-2").expectStatus().isCreated();
+
+      sendWave("alice", "carol", "w-3").expectStatus().isCreated();
+    }
+
+    @Test
+    void waveAllowedAfterWindow() {
+      sendWave("alice", "bob", "w-1").expectStatus().isCreated();
+      sendWave("alice", "bob", "w-2").expectStatus().isCreated();
+      clock.advance(WINDOW.plusSeconds(1));
+
+      sendWave("alice", "bob", "w-3").expectStatus().isCreated();
+    }
+
+    @Test
+    void duplicateClientIdAfterLimitReturnsStoredWave() {
+      sendWave("alice", "bob", "w-1").expectStatus().isCreated();
+      String secondId = waveId(sendWave("alice", "bob", "w-2"));
+
+      assertThat(waveId(sendWave("alice", "bob", "w-2"))).isEqualTo(secondId);
+      assertThat(waveRows()).isEqualTo(2);
+    }
+
+    @Test
+    void socketGetsWaveLimitError() throws Exception {
+      sendWave("alice", "bob", "w-1").expectStatus().isCreated();
+      sendWave("alice", "bob", "w-2").expectStatus().isCreated();
+      BlockingQueue<JsonNode> alice = connect("alice");
+
+      sockets
+          .get(0)
+          .sendMessage(
+              new TextMessage(
+                  "{\"type\":\"msg.send\",\"to\":\"%s\",\"clientMsgId\":\"w-3\",\"kind\":\"WAVE\"}"
+                      .formatted(ids.get("bob"))));
+
+      JsonNode error = nextOfType(alice, "error");
+      assertThat(error.get("code").asString()).isEqualTo("wave-limit");
+      assertThat(error.get("clientMsgId").asString()).isEqualTo("w-3");
+      assertThat(Instant.parse(error.get("retryAt").asString())).isEqualTo(START.plus(WINDOW));
+    }
+
+    @Test
+    void concurrentWavesStoreAtMostTwo() throws Exception {
+      int attempts = 5;
+      ExecutorService pool = Executors.newFixedThreadPool(attempts);
+      CountDownLatch gate = new CountDownLatch(1);
+      try {
+        List<Future<?>> sends = new java.util.ArrayList<>();
+        for (int i = 0; i < attempts; i++) {
+          String clientId = "w-" + i;
+          sends.add(
+              pool.submit(() -> {
+                gate.await();
+                sendWave("alice", "bob", clientId);
+                return null;
+              }));
+        }
+        gate.countDown();
+        for (Future<?> send : sends) {
+          send.get(30, TimeUnit.SECONDS);
+        }
+      } finally {
+        pool.shutdownNow();
+      }
+
+      assertThat(waveRows()).isEqualTo(2);
+    }
+
+    private String waveId(RestTestClient.ResponseSpec response) {
+      return response
+          .expectBody(JsonNode.class)
+          .returnResult()
+          .getResponseBody()
+          .get("id")
+          .asString();
     }
   }
 }

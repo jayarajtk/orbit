@@ -40,3 +40,6 @@ management:
 orbit:
   media:
     region: us-east-1
+  chat:
+    wave-limit: 2
+    wave-window: PT24H

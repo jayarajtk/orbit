@@ -51,6 +51,7 @@ public class ChatService {
   private final TransactionTemplate tx;
   private final TransactionTemplate readOnlyTx;
   private final Clock clock;
+  private final WavePolicy wavePolicy;
 
   public ChatService(
       ChatStore store,
@@ -60,7 +61,8 @@ public class ChatService {
       MediaApi media,
       ApplicationEventPublisher events,
       TransactionTemplate tx,
-      Clock clock) {
+      Clock clock,
+      WavePolicy wavePolicy) {
     this.store = store;
     this.identity = identity;
     this.safety = safety;
@@ -71,6 +73,7 @@ public class ChatService {
     this.readOnlyTx = new TransactionTemplate(tx.getTransactionManager());
     this.readOnlyTx.setReadOnly(true);
     this.clock = clock;
+    this.wavePolicy = wavePolicy;
   }
 
   /** The caller's account id. */
@@ -84,6 +87,7 @@ public class ChatService {
    * @throws RecipientUnavailableException if the recipient is the caller, missing, inactive or
    *     blocked either way (one error for all, so a block is never revealed)
    * @throws InvalidMessageException if the content doesn't match its kind
+   * @throws WaveLimitReachedException if the caller already waved at the recipient too often
    * @throws MediaApi.MediaUnavailableException if the media or album isn't the sender's or isn't
    *     ready
    */
@@ -125,6 +129,9 @@ public class ChatService {
     Instant now = clock.instant();
     UUID conversationId = store.conversationFor(me, to, now);
     long seq = store.nextSeq(conversationId, now);
+    if (command.kind() == MessageKind.WAVE) {
+      requireWaveAllowed(conversationId, me, now);
+    }
     MessageView message =
         new MessageView(
             UUID.randomUUID(),
@@ -149,6 +156,17 @@ public class ChatService {
     events.publishEvent(
         new MessageSent(conversationId, message.id(), me, to, message.kind().name()));
     return message;
+  }
+
+  /**
+   * Must run after {@link ChatStore#nextSeq}: its row lock serializes concurrent senders, so the
+   * count below cannot race.
+   */
+  private void requireWaveAllowed(UUID conversationId, UUID me, Instant now) {
+    List<Instant> recent = store.wavesSince(conversationId, me, now.minus(wavePolicy.window()));
+    if (recent.size() >= wavePolicy.limit()) {
+      throw new WaveLimitReachedException(recent.get(0).plus(wavePolicy.window()));
+    }
   }
 
   /** The caller's conversations, newest first. */
@@ -333,6 +351,30 @@ public class ChatService {
    * @param otherReadSeq the other member has read up to here
    */
   public record MessagePage(List<MessageView> items, long otherReadSeq, boolean muted) {}
+
+  /**
+   * How many waves one member may send another, and over what rolling window.
+   *
+   * @param limit waves allowed within {@code window}
+   * @param window the rolling window
+   */
+  public record WavePolicy(int limit, Duration window) {}
+
+  /** The caller waved at this member too often; they can wave again at {@code retryAt}. */
+  public static class WaveLimitReachedException extends RuntimeException {
+    private static final long serialVersionUID = 1L;
+
+    private final Instant retryAt;
+
+    public WaveLimitReachedException(Instant retryAt) {
+      super("Wave limit reached");
+      this.retryAt = retryAt;
+    }
+
+    public Instant retryAt() {
+      return retryAt;
+    }
+  }
 
   /** The other member can't be messaged. */
   public static class RecipientUnavailableException extends RuntimeException {

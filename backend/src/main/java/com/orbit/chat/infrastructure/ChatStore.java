@@ -90,6 +90,22 @@ public class ChatStore {
         .single();
   }
 
+  /** When {@code senderId} waved in the conversation since {@code since}, oldest first. */
+  public List<Instant> wavesSince(UUID conversationId, UUID senderId, Instant since) {
+    return jdbc.sql(
+            """
+            SELECT created_at FROM message
+            WHERE conversation_id = :c AND sender_id = :s AND kind = 'WAVE'
+              AND created_at > :since
+            ORDER BY created_at
+            """)
+        .param("c", conversationId)
+        .param("s", senderId)
+        .param("since", utc(since))
+        .query((rs, row) -> rs.getObject("created_at", OffsetDateTime.class).toInstant())
+        .list();
+  }
+
   public void insertMessage(MessageView m) {
     jdbc.sql(
             """

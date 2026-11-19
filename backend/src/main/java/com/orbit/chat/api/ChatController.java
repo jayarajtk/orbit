@@ -9,6 +9,7 @@ import com.orbit.chat.application.ChatService.SendCommand;
 import com.orbit.chat.application.ChatService.SendResult;
 import com.orbit.chat.application.ChatService.UnsendExpiredException;
 import com.orbit.chat.application.ChatService.ViewOnceOpenedException;
+import com.orbit.chat.application.ChatService.WaveLimitReachedException;
 import com.orbit.chat.application.ConversationSummary;
 import com.orbit.chat.application.MessageView;
 import com.orbit.chat.domain.MessageKind;
@@ -19,8 +20,11 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.net.URI;
+import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -48,9 +52,11 @@ import org.springframework.web.bind.annotation.RestController;
 class ChatController {
 
   private final ChatService chat;
+  private final Clock clock;
 
-  ChatController(ChatService chat) {
+  ChatController(ChatService chat, Clock clock) {
     this.chat = chat;
+    this.clock = clock;
   }
 
   record SendRequest(
@@ -177,6 +183,22 @@ class ChatController {
         "unsend-expired",
         "Too late to unsend",
         "Messages can only be unsent within 10 minutes.");
+  }
+
+  @ExceptionHandler(WaveLimitReachedException.class)
+  ResponseEntity<ProblemDetail> waveLimit(WaveLimitReachedException e) {
+    ProblemDetail problem =
+        problem(
+            HttpStatus.TOO_MANY_REQUESTS,
+            "wave-limit",
+            "Wave limit reached",
+            "You can wave at this member again later.");
+    problem.setProperty("retryAt", e.retryAt());
+    Duration wait = Duration.between(clock.instant(), e.retryAt());
+    long seconds = wait.getSeconds() + (wait.getNano() > 0 ? 1 : 0);
+    return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+        .header(HttpHeaders.RETRY_AFTER, String.valueOf(Math.max(1, seconds)))
+        .body(problem);
   }
 
   private static ProblemDetail problem(
