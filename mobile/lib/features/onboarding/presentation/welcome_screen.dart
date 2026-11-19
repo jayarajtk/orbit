@@ -1,13 +1,54 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:orbit/app/router.dart';
+import 'package:orbit/app/session.dart';
 import 'package:orbit/core/widgets/fill_or_scroll.dart';
 import 'package:orbit/l10n/app_localizations.dart';
 
 /// W1: first screen for signed-out users. Leads with the privacy promise.
-class WelcomeScreen extends StatelessWidget {
+/// On launch it resumes a stored session, so returning members go straight
+/// to where they left off.
+class WelcomeScreen extends ConsumerStatefulWidget {
   /// Creates the welcome screen.
   const WelcomeScreen({super.key});
+
+  @override
+  ConsumerState<WelcomeScreen> createState() => _WelcomeScreenState();
+}
+
+class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_restore());
+  }
+
+  Future<void> _restore() async {
+    final router = GoRouter.of(context);
+    final SessionDestination destination;
+    try {
+      destination = await ref.read(sessionProvider).restore();
+    } on Exception {
+      // Offline or the session expired: the member signs in again.
+      return;
+    }
+    if (!mounted) return;
+    switch (destination) {
+      case SessionDestination.welcome:
+        break;
+      case SessionDestination.birthday:
+        await router.push(AppRoutes.onboardingBirthday);
+      case SessionDestination.profileSetup:
+        await router.push(AppRoutes.onboardingProfile);
+      case SessionDestination.home:
+        router.go(AppRoutes.nearby);
+      case SessionDestination.restricted:
+        router.go(AppRoutes.restricted);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -28,6 +28,8 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Custom scheme for the OIDC redirect (com.orbit.orbit:/oauthredirect).
+        manifestPlaceholders["appAuthRedirectScheme"] = "com.orbit.orbit"
     }
 
     buildTypes {

@@ -1,4 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Foreground ("while using") location only; no background location (ADR-0003). -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Voice notes. Photos and videos use the system picker, which needs no permission. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <application
         android:label="orbit"
         android:name="${applicationName}"

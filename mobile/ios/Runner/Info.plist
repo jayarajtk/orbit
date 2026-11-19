@@ -66,5 +66,29 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Orbit lets you choose photos and videos to add to your profile, your private albums or a chat. Nothing is uploaded unless you pick it.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Orbit uses the camera only when you take a photo to send.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Orbit uses the microphone only while you record a voice note.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Orbit uses your location only while you're using the app, rounded to your area, to show who's nearby. Your exact location is never stored.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.orbit.orbit.auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.orbit.orbit</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

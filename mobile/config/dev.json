@@ -1,4 +1,7 @@
 {
   "ORBIT_FLAVOR": "dev",
-  "ORBIT_API_BASE_URL": ""
+  "ORBIT_API_BASE_URL": "http://localhost:8080",
+  "ORBIT_OIDC_ISSUER": "http://localhost:8180/realms/orbit",
+  "ORBIT_OIDC_CLIENT_ID": "orbit-mobile",
+  "ORBIT_OIDC_REDIRECT_URI": "com.orbit.orbit:/oauthredirect"
 }

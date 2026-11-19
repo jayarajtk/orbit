@@ -33,8 +33,17 @@ ThemeData buildOrbitTheme() {
     surface: OrbitColors.ground,
     onSurface: OrbitColors.text,
     surfaceContainer: OrbitColors.surface,
+    surfaceContainerHigh: OrbitColors.surface,
+    surfaceContainerHighest: OrbitColors.outline,
+    surfaceContainerLow: OrbitColors.surface,
     onSurfaceVariant: OrbitColors.textMuted,
     outline: OrbitColors.outline,
+    secondaryContainer: OrbitColors.outline,
+    onSecondaryContainer: OrbitColors.text,
+  );
+  final fieldBorder = OutlineInputBorder(
+    borderRadius: BorderRadius.circular(12),
+    borderSide: BorderSide(color: scheme.outline),
   );
   const minTapSize = Size(double.infinity, 52);
   final buttonShape = RoundedRectangleBorder(
@@ -65,5 +74,41 @@ ThemeData buildOrbitTheme() {
       backgroundColor: scheme.surface,
       indicatorColor: scheme.surfaceContainer,
     ),
+    appBarTheme: AppBarTheme(
+      backgroundColor: scheme.surface,
+      surfaceTintColor: Colors.transparent,
+    ),
+    cardTheme: CardThemeData(
+      color: scheme.surfaceContainer,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: scheme.outline),
+      ),
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: scheme.surfaceContainer,
+      selectedColor: scheme.primary,
+      secondarySelectedColor: scheme.primary,
+      checkmarkColor: scheme.onPrimary,
+      side: BorderSide(color: scheme.outline),
+      shape: const StadiumBorder(),
+      labelStyle: TextStyle(color: scheme.onSurface),
+      secondaryLabelStyle: TextStyle(color: scheme.onPrimary),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: scheme.surfaceContainer,
+      border: fieldBorder,
+      enabledBorder: fieldBorder,
+      focusedBorder: fieldBorder.copyWith(
+        borderSide: BorderSide(color: scheme.primary, width: 2),
+      ),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: scheme.surfaceContainer,
+      surfaceTintColor: Colors.transparent,
+    ),
+    dialogTheme: DialogThemeData(backgroundColor: scheme.surfaceContainer),
+    snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
   );
 }

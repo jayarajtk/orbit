@@ -1,19 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:orbit/app/app.dart';
 
-Future<void> pumpApp(WidgetTester tester) async {
-  await tester.pumpWidget(const ProviderScope(child: OrbitApp()));
-  await tester.pumpAndSettle();
-}
+import '../helpers/pump_app.dart';
 
 void main() {
   group('onboarding', () {
     testWidgets('welcome screen leads with the privacy promise', (
       tester,
     ) async {
-      await pumpApp(tester);
+      await pumpOrbit(tester);
 
       expect(find.text('Meet people nearby.'), findsOneWidget);
       expect(
@@ -26,54 +21,76 @@ void main() {
     testWidgets('get started opens sign in, and back returns to welcome', (
       tester,
     ) async {
-      await pumpApp(tester);
+      await pumpOrbit(tester);
 
-      await tester.tap(find.text('Get started'));
-      await tester.pumpAndSettle();
+      await tapText(tester, 'Get started');
       expect(find.text('Sign in to Orbit'), findsOneWidget);
 
       await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
       expect(find.text('Meet people nearby.'), findsOneWidget);
     });
+
+    testWidgets('blocks under-18s at the age gate', (tester) async {
+      await pumpOrbit(tester);
+      await tapText(tester, 'Get started');
+      await tapText(tester, 'Continue with Apple');
+
+      await enterBirthday(tester, '01/01/2012');
+
+      expect(
+        find.text('Sorry — Orbit is only for people 18 and over.'),
+        findsOneWidget,
+      );
+      final button = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Continue'),
+      );
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('adults finish onboarding and land on a grid of profiles', (
+      tester,
+    ) async {
+      await pumpOrbit(tester);
+
+      await onboard(tester);
+
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.text('Alex 27'), findsOneWidget);
+      expect(find.text('Fresh faces'), findsOneWidget);
+    });
   });
 
   group('home tabs', () {
-    Future<void> signIn(WidgetTester tester) async {
-      await pumpApp(tester);
-      await tester.tap(find.text('Get started'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Continue with Apple'));
-      await tester.pumpAndSettle();
-    }
+    testWidgets('tabs switch between Nearby, Inbox and Me', (tester) async {
+      await pumpOrbit(tester);
+      await onboard(tester);
 
-    testWidgets('signing in lands on the Nearby tab', (tester) async {
-      await signIn(tester);
+      await tapText(tester, 'Inbox');
+      expect(find.text('Alex'), findsOneWidget);
 
-      expect(
-        find.text('No one nearby yet — try widening your filters.'),
-        findsOneWidget,
-      );
-      expect(find.byType(NavigationBar), findsOneWidget);
+      await tapText(tester, 'Me');
+      expect(find.text('Robin, 36'), findsOneWidget);
     });
 
-    testWidgets('tabs switch between Nearby, Inbox and Me', (tester) async {
-      await signIn(tester);
+    testWidgets('the inbox tab shows the unread count', (tester) async {
+      await pumpOrbit(tester);
+      await onboard(tester);
 
-      await tester.tap(find.text('Inbox'));
-      await tester.pumpAndSettle();
-      expect(find.text('Say hi to someone nearby.'), findsOneWidget);
-
-      await tester.tap(find.text('Me').last);
-      await tester.pumpAndSettle();
-      expect(find.widgetWithText(AppBar, 'Me'), findsOneWidget);
+      final badge = tester.widget<Badge>(
+        find.ancestor(
+          of: find.byIcon(Icons.chat_bubble_outline),
+          matching: find.byType(Badge),
+        ),
+      );
+      expect((badge.label! as Text).data, '3');
     });
   });
 
   testWidgets('primary action meets the 48dp minimum touch target', (
     tester,
   ) async {
-    await pumpApp(tester);
+    await pumpOrbit(tester);
 
     final size = tester.getSize(
       find.widgetWithText(FilledButton, 'Get started'),
