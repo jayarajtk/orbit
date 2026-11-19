@@ -7,7 +7,12 @@ import 'package:orbit/core/network/account_restriction.dart';
 /// A failed API call, from the server's RFC 9457 problem or the network.
 class ApiException implements Exception {
   /// Creates an exception.
-  const ApiException({required this.status, required this.type, this.detail});
+  const ApiException({
+    required this.status,
+    required this.type,
+    this.detail,
+    this.retryAt,
+  });
 
   /// HTTP status, or 0 when the server could not be reached.
   final int status;
@@ -18,6 +23,9 @@ class ApiException implements Exception {
 
   /// Human-readable detail from the server, if any.
   final String? detail;
+
+  /// When the member may try again (UTC), for rate-limit problems.
+  final DateTime? retryAt;
 
   /// Whether this is the given problem type.
   bool isProblem(String problemType) => type == problemType;
@@ -118,6 +126,7 @@ ApiException toApiException(DioException error) {
   final data = response.data;
   var type = 'about:blank';
   String? detail;
+  DateTime? retryAt;
   if (data is Map<String, dynamic>) {
     final rawType = data['type'];
     if (rawType is String) {
@@ -125,11 +134,14 @@ ApiException toApiException(DioException error) {
     }
     final rawDetail = data['detail'];
     if (rawDetail is String) detail = rawDetail;
+    final rawRetryAt = data['retryAt'];
+    if (rawRetryAt is String) retryAt = DateTime.tryParse(rawRetryAt)?.toUtc();
   }
   return ApiException(
     status: response.statusCode ?? 0,
     type: type,
     detail: detail,
+    retryAt: retryAt,
   );
 }
 

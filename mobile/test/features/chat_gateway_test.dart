@@ -114,6 +114,14 @@ class Harness {
         ),
       },
       handlers: {
+        'POST /conversations/limited/messages': (_) => (
+          429,
+          {
+            'type': 'urn:orbit:problem:wave-limit',
+            'status': 429,
+            'retryAt': '2026-11-19T05:00:00Z',
+          },
+        ),
         // Echo the client id so the reply acknowledges the pending message.
         'POST /conversations/bob/messages': (options) {
           final body = options.data as Map<String, Object?>;
@@ -240,6 +248,52 @@ void main() {
       isA<MessageUnsent>().having((e) => e.messageId, 'messageId', 'm9'),
       isA<SendFailed>().having((e) => e.clientMsgId, 'clientMsgId', 'x'),
     ]);
+  });
+
+  test('REST 429 wave-limit becomes SendFailed with waveLimit', () async {
+    app = Harness(connectable: false);
+
+    app.gateway.send(
+      'limited',
+      Message(
+        id: 'w1',
+        clientMsgId: 'w1',
+        fromMe: true,
+        kind: MessageKind.wave,
+        sentAt: DateTime.utc(2026, 11, 18, 12),
+        status: DeliveryStatus.pending,
+      ),
+    );
+    await pumpEventQueue();
+
+    expect(
+      app.events.single,
+      isA<SendFailed>()
+          .having((e) => e.clientMsgId, 'clientMsgId', 'w1')
+          .having((e) => e.reason, 'reason', SendFailure.waveLimit)
+          .having((e) => e.retryAt, 'retryAt', DateTime.utc(2026, 11, 19, 5)),
+    );
+  });
+
+  test('socket wave-limit error becomes SendFailed with waveLimit', () async {
+    app = Harness();
+    final socket = await app.connected();
+
+    socket.receive({
+      'type': 'error',
+      'code': 'wave-limit',
+      'clientMsgId': 'w2',
+      'retryAt': '2026-11-19T05:00:00Z',
+    });
+    await pumpEventQueue();
+
+    expect(
+      app.events.last,
+      isA<SendFailed>()
+          .having((e) => e.clientMsgId, 'clientMsgId', 'w2')
+          .having((e) => e.reason, 'reason', SendFailure.waveLimit)
+          .having((e) => e.retryAt, 'retryAt', DateTime.utc(2026, 11, 19, 5)),
+    );
   });
 
   test('sends over the socket while connected', () async {

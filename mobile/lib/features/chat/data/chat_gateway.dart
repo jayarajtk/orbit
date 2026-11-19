@@ -101,13 +101,32 @@ class MessageViewed extends ChatEvent {
   final String messageId;
 }
 
+/// Why the server refused a message.
+enum SendFailure {
+  /// Refused for any other reason; the message can be retried.
+  refused,
+
+  /// The member already waved at this recipient too often.
+  waveLimit,
+}
+
 /// The server refused the message with [clientMsgId].
 class SendFailed extends ChatEvent {
   /// Creates the event.
-  const SendFailed(this.clientMsgId);
+  const SendFailed(
+    this.clientMsgId, {
+    this.reason = SendFailure.refused,
+    this.retryAt,
+  });
 
   /// The refused message's idempotency key.
   final String clientMsgId;
+
+  /// Why it was refused.
+  final SendFailure reason;
+
+  /// When sending may be tried again (UTC), for [SendFailure.waveLimit].
+  final DateTime? retryAt;
 }
 
 /// One page of history.
@@ -389,12 +408,21 @@ class ApiChatGateway implements ChatGateway {
       'msg.read' => ReadUpTo(otherId!, (frame['seq'] as num).toInt()),
       'typing' => OtherTyping(otherId!),
       'msg.viewed' => MessageViewed(otherId!, frame['messageId'] as String),
-      'error' when frame['clientMsgId'] != null => SendFailed(
-        frame['clientMsgId'] as String,
-      ),
+      'error' when frame['clientMsgId'] != null => _sendFailed(frame),
       _ => null,
     };
     if (event != null) _events.add(event);
+  }
+
+  SendFailed _sendFailed(Map<String, dynamic> frame) {
+    final clientMsgId = frame['clientMsgId'] as String;
+    if (frame['code'] != 'wave-limit') return SendFailed(clientMsgId);
+    final retryAt = frame['retryAt'];
+    return SendFailed(
+      clientMsgId,
+      reason: SendFailure.waveLimit,
+      retryAt: retryAt is String ? DateTime.tryParse(retryAt)?.toUtc() : null,
+    );
   }
 
   @override
@@ -469,7 +497,16 @@ class ApiChatGateway implements ChatGateway {
       );
     } on ApiException catch (e) {
       // Offline: stays pending and is resent on reconnect. Refused: failed.
-      if (e.status != 0) _events.add(SendFailed(clientMsgId));
+      if (e.status == 0) return;
+      _events.add(
+        e.isProblem('wave-limit')
+            ? SendFailed(
+                clientMsgId,
+                reason: SendFailure.waveLimit,
+                retryAt: e.retryAt,
+              )
+            : SendFailed(clientMsgId),
+      );
     }
   }
 

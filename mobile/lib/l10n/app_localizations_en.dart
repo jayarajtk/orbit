@@ -234,6 +234,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messageButton => 'Message';
 
   @override
+  String waveAgainIn(String time) {
+    return 'Wave again in $time';
+  }
+
+  @override
+  String waveLimitReached(String time) {
+    return 'You\'ve waved twice today. Try again in $time.';
+  }
+
+  @override
   String waveSent(String name) {
     return 'You waved at $name';
   }

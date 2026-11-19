@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbit/core/widgets/glass_icon_button.dart';
+import 'package:orbit/features/chat/domain/conversation.dart';
+import 'package:orbit/features/chat/domain/message.dart';
+import 'package:orbit/features/chat/presentation/chat_controller.dart';
+import 'package:orbit/features/chat/presentation/wave_limit.dart';
 import 'package:orbit/features/discovery/data/dummy_profiles.dart';
 import 'package:orbit/features/discovery/data/fake_profile_repository.dart';
 import 'package:orbit/features/discovery/domain/discovery_filters.dart';
@@ -34,7 +38,37 @@ class _PhotoAddedRepository extends FakeProfileRepository {
   Future<Profile?> byId(String id) async => _alex(2);
 }
 
+/// Demo chat where the user has already waved at Alex twice in the last hour.
+class _WavedTwiceChat extends DemoChatController {
+  @override
+  Map<String, Conversation> build() {
+    final alexId = dummyProfiles.first.id;
+    return {
+      ...super.build(),
+      alexId: Conversation(
+        profileId: alexId,
+        messages: [
+          for (final (i, minutes) in [40, 20].indexed)
+            Message(
+              id: 'w$i',
+              fromMe: true,
+              kind: MessageKind.wave,
+              sentAt: testNow.subtract(Duration(minutes: minutes)),
+            ),
+        ],
+      ),
+    };
+  }
+}
+
 void main() {
+  test('waitLabel rounds hours and minutes up', () {
+    expect(waitLabel(const Duration(hours: 5, minutes: 1)), '6h');
+    expect(waitLabel(const Duration(minutes: 24, seconds: 10)), '25m');
+    expect(waitLabel(const Duration(hours: 1)), '1h');
+    expect(waitLabel(Duration.zero), '1m');
+  });
+
   testWidgets('opening a profile reports no framework errors', (tester) async {
     final errors = <FlutterErrorDetails>[];
     final original = FlutterError.onError;
@@ -91,6 +125,24 @@ void main() {
         findsOneWidget,
       );
     }
+  });
+
+  testWidgets('Wave button counts down after the limit', (tester) async {
+    await pumpOrbit(
+      tester,
+      overrides: [chatProvider.overrideWith(_WavedTwiceChat.new)],
+    );
+    await onboard(tester);
+
+    await tapText(tester, 'Alex 27');
+
+    // The oldest wave was 40 minutes ago, so waving unlocks in 23h20m.
+    final button = find.widgetWithText(OutlinedButton, 'Wave again in 24h');
+    expect(button, findsOneWidget);
+    expect(tester.widget<OutlinedButton>(button).onPressed, isNull);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(find.text('You waved at Alex'), findsNothing);
   });
 
   testWidgets('the Online chip hides offline members', (tester) async {

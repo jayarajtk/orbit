@@ -514,6 +514,18 @@ abstract class AppLocalizations {
   /// **'Message'**
   String get messageButton;
 
+  /// No description provided for @waveAgainIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Wave again in {time}'**
+  String waveAgainIn(String time);
+
+  /// No description provided for @waveLimitReached.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'ve waved twice today. Try again in {time}.'**
+  String waveLimitReached(String time);
+
   /// No description provided for @waveSent.
   ///
   /// In en, this message translates to:

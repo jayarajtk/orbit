@@ -8,6 +8,7 @@ import 'package:orbit/features/chat/data/chat_gateway.dart';
 import 'package:orbit/features/chat/domain/conversation.dart';
 import 'package:orbit/features/chat/domain/message.dart';
 import 'package:orbit/features/chat/presentation/chat_controller.dart';
+import 'package:orbit/features/chat/presentation/wave_limit.dart';
 import 'package:orbit/features/media/data/media_capture.dart';
 import 'package:orbit/features/media/data/media_repository.dart';
 import 'package:orbit/features/media/domain/media.dart';
@@ -285,16 +286,42 @@ class LiveChatController extends ChatController {
         if (message != null) _replace(otherId, message.copyWith(viewed: true));
       case OtherTyping(:final otherId):
         if (!isBlocked(otherId)) _setTyping(otherId, typing: true);
-      case SendFailed(:final clientMsgId):
+      case SendFailed(:final clientMsgId, :final reason, :final retryAt):
         for (final c in state.values) {
           for (final m in c.messages) {
-            if (m.clientMsgId == clientMsgId &&
-                m.status == DeliveryStatus.pending) {
+            if (m.clientMsgId != clientMsgId ||
+                m.status != DeliveryStatus.pending) {
+              continue;
+            }
+            if (reason == SendFailure.waveLimit) {
+              _refuseWave(c.profileId, m, retryAt);
+            } else {
               _replace(c.profileId, m.copyWith(status: DeliveryStatus.failed));
             }
           }
         }
     }
+  }
+
+  /// Drops a wave the server refused and locks the Wave button, rather than
+  /// leaving a failed message that could only be refused again.
+  void _refuseWave(String profileId, Message wave, DateTime? retryAt) {
+    final conversation = state[profileId];
+    if (conversation == null) return;
+    put(
+      conversation.copyWith(
+        messages: [
+          for (final m in conversation.messages)
+            if (m.id != wave.id) m,
+        ],
+      ),
+    );
+    final unlocksAt = retryAt ?? now.add(waveWindow);
+    ref.read(waveLimitProvider(profileId).notifier).block(unlocksAt);
+    ref.read(waveRefusalProvider.notifier).refusal = WaveRefusal(
+      profileId,
+      unlocksAt,
+    );
   }
 
   /// After a (re)connect: load what was missed and resend what is pending.

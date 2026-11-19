@@ -11,6 +11,7 @@ import 'package:orbit/features/chat/domain/conversation.dart';
 import 'package:orbit/features/chat/domain/message.dart';
 import 'package:orbit/features/chat/presentation/chat_controller.dart';
 import 'package:orbit/features/chat/presentation/live_chat_controller.dart';
+import 'package:orbit/features/chat/presentation/wave_limit.dart';
 import 'package:orbit/features/media/data/media_capture.dart';
 import 'package:orbit/features/media/data/media_repository.dart';
 import 'package:orbit/features/media/domain/media.dart';
@@ -338,6 +339,31 @@ void main() {
     expect(app.bob.last!.status, DeliveryStatus.pending);
     expect(app.gateway.sent.last.$2.clientMsgId, clientMsgId);
     expect(app.gateway.sent, hasLength(2));
+    app.dispose();
+  });
+
+  testWidgets('a refused wave disappears and blocks the button', (
+    tester,
+  ) async {
+    final app = Harness();
+    await app.start(tester);
+    app.chat.wave('bob');
+    final wave = app.gateway.sent.last.$2;
+    final retryAt = testNow.add(const Duration(hours: 5));
+    expect(app.bob.last!.kind, MessageKind.wave);
+
+    app.gateway.emit(
+      SendFailed(
+        wave.clientMsgId!,
+        reason: SendFailure.waveLimit,
+        retryAt: retryAt,
+      ),
+    );
+    await tester.pump();
+
+    expect(app.bob.messages.map((m) => m.kind), [MessageKind.text]);
+    expect(app.container.read(waveLimitProvider('bob')), retryAt);
+    expect(app.container.read(waveRefusalProvider)?.retryAt, retryAt);
     app.dispose();
   });
 
