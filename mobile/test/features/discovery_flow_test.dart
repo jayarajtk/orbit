@@ -258,6 +258,8 @@ void main() {
     final button = find.widgetWithText(OutlinedButton, 'Wave again in 24h');
     expect(button, findsOneWidget);
     expect(tester.widget<OutlinedButton>(button).onPressed, isNull);
+    await tester.ensureVisible(button);
+    await tester.pumpAndSettle();
     await tester.tap(button);
     await tester.pumpAndSettle();
     expect(find.text('You waved at Alex'), findsNothing);
