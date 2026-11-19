@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -65,9 +66,16 @@ class _SolidImages extends Fake implements BaseCacheManager {
 /// Loads the fonts that ship with the Flutter SDK, so text and icons render
 /// as glyphs instead of the test font's solid blocks.
 Future<void> _loadFonts() async {
-  final fonts = Directory(
-    '${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts',
-  );
+  final root = Platform.environment['FLUTTER_ROOT'];
+  if (root == null || root.isEmpty) {
+    throw StateError('FLUTTER_ROOT is not set; run via `flutter test`.');
+  }
+  final fonts = Directory('$root/bin/cache/artifacts/material_fonts');
+  if (!fonts.existsSync()) {
+    throw StateError(
+      'No SDK fonts at ${fonts.path}; run `flutter precache` and retry.',
+    );
+  }
   Future<void> load(String family, List<String> names) async {
     final loader = FontLoader(family);
     for (final name in names) {
@@ -206,15 +214,22 @@ Map<String, Object?> _status(int n) => {
   'seen': false,
 };
 
-/// Lets real asynchronous work (file reads, image decoding) finish, which
-/// the test clock never does by itself.
-Future<void> _loadImages(WidgetTester tester) async {
-  for (var i = 0; i < 8; i++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
-    await tester.pump(const Duration(milliseconds: 50));
+/// Waits until at least [count] images have decoded and none is still
+/// loading. File reads and decoding happen outside the test clock, so each
+/// round yields to real asynchronous work and then pumps zero time; the
+/// clock never advances, which keeps animations frozen. Fails after a bounded
+/// number of rounds instead of capturing a half-loaded screen.
+Future<void> _loadImages(WidgetTester tester, {int count = 0}) async {
+  if (count == 0) return;
+  var loaded = 0;
+  for (var round = 0; round < 200; round++) {
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+    final images = tester.allRenderObjects.whereType<RenderImage>();
+    loaded = images.where((image) => image.image != null).length;
+    if (loaded >= count && loaded == images.length) return;
   }
+  fail('Only $loaded of $count images decoded after 200 rounds.');
 }
 
 void _setUpPhone(WidgetTester tester, Brightness brightness) {
@@ -281,7 +296,6 @@ Future<void> _pumpApp(
 }
 
 Future<void> _matches(WidgetTester tester, String name) async {
-  await _loadImages(tester);
   await expectLater(find.byType(MaterialApp), matchesGoldenFile('$name.png'));
 }
 
@@ -363,9 +377,11 @@ void main() {
           ],
         );
         await tester.pump(const Duration(milliseconds: 100));
-        await _loadImages(tester);
-        // Freeze the 5 s progress bar at a fixed point into the first status.
-        await tester.pump(const Duration(milliseconds: 1500));
+        await _loadImages(tester, count: 1);
+        // The loading above pumps no time. With animations disabled the
+        // viewer runs its 5 s segment at 1/20 speed (250 ms), so this fixed
+        // pump freezes the bar part-way through the first status.
+        await tester.pump(const Duration(milliseconds: 50));
         await _matches(tester, 'status_viewer_$mode');
       });
 
@@ -378,6 +394,7 @@ void main() {
           overrides: [albumRepositoryProvider.overrideWithValue(_OneAlbum())],
         );
         await tester.pumpAndSettle();
+        await _loadImages(tester, count: 6);
         await _matches(tester, 'album_$mode');
       });
     });
