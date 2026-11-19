@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:orbit/app/session.dart';
 import 'package:orbit/core/widgets/status_ring.dart';
 import 'package:orbit/features/discovery/data/fake_profile_repository.dart';
 import 'package:orbit/features/discovery/domain/discovery_filters.dart';
@@ -35,6 +36,7 @@ class _Picker implements MediaPicker {
 /// An upload that finishes when the test says so.
 class _PendingUpload implements MediaRepository {
   final Completer<UploadedMedia> result = Completer();
+  int calls = 0;
 
   @override
   Future<UploadedMedia> upload(
@@ -42,7 +44,10 @@ class _PendingUpload implements MediaRepository {
     Uint8List bytes,
     String contentType, {
     int? durationMs,
-  }) => result.future;
+  }) {
+    calls++;
+    return result.future;
+  }
 }
 
 class _CountingProfiles extends FakeProfileRepository {
@@ -364,5 +369,50 @@ void main() {
 
     expect(find.byKey(const ValueKey('status-posting')), findsNothing);
     expect(_ringIn(tester, find.byType(MeAvatar)), StatusRing.unseen);
+  });
+
+  group('while an upload is pending', () {
+    final photo = PickedMedia(bytes: plainJpeg(), contentType: 'image/jpeg');
+
+    testWidgets('a second post is ignored', (tester) async {
+      final upload = _PendingUpload();
+      await pumpOrbit(tester, overrides: _Api(upload: upload).overrides);
+      final notifier = _container(
+        tester,
+      ).read(statusPostingProvider.notifier);
+
+      unawaited(notifier.post(photo));
+      unawaited(notifier.post(photo));
+      await tester.pump();
+
+      expect(upload.calls, 1);
+    });
+
+    testWidgets('signing out leaves the next session idle', (tester) async {
+      final upload = _PendingUpload();
+      final api = _Api(upload: upload);
+      await pumpOrbit(tester, overrides: api.overrides);
+      final container = _container(tester);
+      unawaited(container.read(statusPostingProvider.notifier).post(photo));
+      await tester.pump();
+      expect(container.read(statusPostingProvider).isPosting, isTrue);
+
+      await container.read(sessionProvider).signOut();
+      await tester.pumpAndSettle();
+      expect(container.read(statusPostingProvider).isPosting, isFalse);
+
+      // The old upload finishing must not post into the next session.
+      upload.result.complete(
+        UploadedMedia(
+          id: 'm1',
+          links: MediaLinks(url: 'u', expiresAt: DateTime.utc(2026, 11, 10)),
+        ),
+      );
+      await tester.pump();
+
+      expect(container.read(statusPostingProvider).isPosting, isFalse);
+      expect(container.read(statusPostingProvider).failure, isNull);
+      expect(api.calls, isNot(contains('POST /me/statuses')));
+    });
   });
 }

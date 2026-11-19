@@ -105,13 +105,22 @@ final statusPostingProvider =
 
 /// Runs one status post at a time.
 class StatusPostingNotifier extends Notifier<StatusPosting> {
+  // Invalidating the provider (sign-out) rebuilds this notifier rather than
+  // unmounting it, so a post started before that is told apart by this count.
+  int _generation = 0;
+
   @override
-  StatusPosting build() => StatusPosting.idle;
+  StatusPosting build() {
+    _generation++;
+    return StatusPosting.idle;
+  }
 
   /// Uploads [photo] and posts it with [caption]. Ignored while another post
   /// is in flight. A failure is left in [state] for the Me screen to show.
   Future<void> post(PickedMedia photo, {String? caption}) async {
     if (state.isPosting) return;
+    final generation = _generation;
+    bool current() => ref.mounted && generation == _generation;
     state = StatusPosting.posting;
     try {
       final media = ref.read(mediaRepositoryProvider);
@@ -123,12 +132,15 @@ class StatusPostingNotifier extends Notifier<StatusPosting> {
         photo.bytes,
         photo.contentType,
       );
+      // Signing out resets this notifier mid-upload: the photo belongs to
+      // the old session and must not be posted into the next one.
+      if (!current()) return;
       await ref
           .read(myStatusesProvider.notifier)
           .post(uploaded.id, caption: caption);
-      if (ref.mounted) state = StatusPosting.idle;
+      if (current()) state = StatusPosting.idle;
     } on ApiException catch (e) {
-      if (!ref.mounted) return;
+      if (!current()) return;
       state = StatusPosting._(
         false,
         e.isProblem('status-limit')
@@ -141,7 +153,7 @@ class StatusPostingNotifier extends Notifier<StatusPosting> {
       // Not an API refusal (for example no media service): the cause goes to
       // the developer log, the member only learns it failed.
       developer.log('Status post failed', error: e, stackTrace: stack);
-      if (ref.mounted) {
+      if (current()) {
         state = const StatusPosting._(false, StatusPostFailure.other);
       }
     }

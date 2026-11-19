@@ -114,6 +114,7 @@ class SessionController {
       ..invalidate(myStatusesProvider)
       ..invalidate(profileStatusesProvider)
       ..invalidate(seenStatusOwnersProvider)
+      ..invalidate(statusPostingProvider)
       ..invalidate(allProfilesProvider);
     // After the state is gone, so a cache failure cannot keep it alive.
     try {
