@@ -1,4 +1,5 @@
 import 'package:orbit/features/discovery/domain/profile.dart';
+import 'package:orbit/features/status/domain/status.dart';
 
 /// Fictional members for development builds. Any resemblance to real people
 /// is coincidental. Replaced by the discovery API in Phase 1.
@@ -19,6 +20,7 @@ const dummyProfiles = <Profile>[
     tags: ['climbing', 'coffee', 'music'],
     photoCount: 4,
     isNew: true,
+    status: StatusRing.unseen,
   ),
   Profile(
     id: '00000000-0000-4000-8000-000000000002',
@@ -49,6 +51,7 @@ const dummyProfiles = <Profile>[
     tags: ['boardgames', 'indie', 'books'],
     photoCount: 2,
     isNew: true,
+    status: StatusRing.seen,
   ),
   Profile(
     id: '00000000-0000-4000-8000-000000000004',

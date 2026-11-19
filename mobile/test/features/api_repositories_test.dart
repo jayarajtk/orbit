@@ -11,6 +11,9 @@ import 'package:orbit/features/discovery/presentation/discovery_providers.dart';
 import 'package:orbit/features/profile/data/account_repository.dart';
 import 'package:orbit/features/profile/domain/my_profile.dart';
 import 'package:orbit/features/safety/data/safety_repository.dart';
+import 'package:orbit/features/status/data/status_repository.dart';
+import 'package:orbit/features/status/domain/status.dart';
+import 'package:orbit/features/status/presentation/status_providers.dart';
 import 'package:orbit/l10n/app_localizations_en.dart';
 
 import '../helpers/fake_api.dart';
@@ -59,6 +62,39 @@ void main() {
       expect(l10n.distance(0), '<1 km');
       expect(l10n.distance(4), '4 km');
       expect(l10n.distance(Profile.tenPlusKm), '10+ km');
+    });
+  });
+
+  group('Profile status ring', () {
+    test('UNSEEN, SEEN and NONE parse to the ring', () {
+      expect(
+        Profile.fromJson({...alexJson, 'status': 'UNSEEN'}).status,
+        StatusRing.unseen,
+      );
+      expect(
+        Profile.fromJson({...alexJson, 'status': 'SEEN'}).status,
+        StatusRing.seen,
+      );
+      expect(
+        Profile.fromJson({...alexJson, 'status': 'NONE'}).status,
+        StatusRing.none,
+      );
+    });
+
+    test('a missing or unknown status is none', () {
+      expect(Profile.fromJson(alexJson).status, StatusRing.none);
+      expect(
+        Profile.fromJson({...alexJson, 'status': 'NEW'}).status,
+        StatusRing.none,
+      );
+    });
+
+    test('ringFor greys an unseen ring once the owner was viewed', () {
+      final unseen = Profile.fromJson({...alexJson, 'status': 'UNSEEN'});
+      final none = Profile.fromJson(alexJson);
+      expect(ringFor(unseen, const {}), StatusRing.unseen);
+      expect(ringFor(unseen, {'a1'}), StatusRing.seen);
+      expect(ringFor(none, {'a1'}), StatusRing.none);
     });
   });
 
@@ -248,6 +284,148 @@ void main() {
         'alsoBlock': false,
         'statusId': 's1',
       });
+    });
+  });
+
+  group('ApiStatusRepository', () {
+    const myJson = <String, Object?>{
+      'id': 's1',
+      'url': 'https://x/full',
+      'thumbUrl': 'https://x/thumb',
+      'caption': 'Hi',
+      'createdAt': '2026-11-18T10:00:00Z',
+      'expiresAt': '2026-11-19T10:00:00Z',
+      'viewCount': 1,
+      'viewers': [
+        {
+          'id': 'v1',
+          'name': 'Sam',
+          'thumbUrl': null,
+          'viewedAt': '2026-11-18T11:30:00Z',
+        },
+      ],
+    };
+
+    test('post sends the media id and caption and parses the status', () async {
+      final adapter = FakeAdapter({'POST /me/statuses': (201, myJson)});
+      final status = await ApiStatusRepository(
+        dioWith(adapter),
+      ).post('m1', caption: 'Hi');
+      expect(adapter.requests.single.data, {'mediaId': 'm1', 'caption': 'Hi'});
+      expect(status.id, 's1');
+      expect(status.caption, 'Hi');
+      expect(status.viewCount, 1);
+      expect(status.createdAt, DateTime.utc(2026, 11, 18, 10));
+      expect(status.createdAt.isUtc, isTrue);
+      expect(status.expiresAt, DateTime.utc(2026, 11, 19, 10));
+      expect(status.viewers.single.name, 'Sam');
+      expect(status.viewers.single.thumbUrl, isNull);
+      expect(status.viewers.single.viewedAt.isUtc, isTrue);
+    });
+
+    test('post leaves the caption out when there is none', () async {
+      final adapter = FakeAdapter({'POST /me/statuses': (201, myJson)});
+      await ApiStatusRepository(dioWith(adapter)).post('m1');
+      expect(adapter.requests.single.data, {'mediaId': 'm1'});
+    });
+
+    test('a 409 status-limit surfaces as an ApiException', () async {
+      final adapter = FakeAdapter({
+        'POST /me/statuses': (409, problem('status-limit', 409)),
+      });
+      await expectLater(
+        ApiStatusRepository(dioWith(adapter)).post('m1'),
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.type, 'type', 'status-limit')
+              .having((e) => e.status, 'status', 409),
+        ),
+      );
+    });
+
+    test('mine parses the list', () async {
+      final adapter = FakeAdapter({
+        'GET /me/statuses': (200, [myJson]),
+      });
+      final list = await ApiStatusRepository(dioWith(adapter)).mine();
+      expect(list.single.id, 's1');
+      expect(list.single.viewers, hasLength(1));
+    });
+
+    test('delete sends DELETE for the id', () async {
+      final adapter = FakeAdapter({'DELETE /me/statuses/s1': (204, null)});
+      await ApiStatusRepository(dioWith(adapter)).delete('s1');
+      expect(adapter.requests.single.method, 'DELETE');
+    });
+
+    test("of parses another member's statuses", () async {
+      final adapter = FakeAdapter({
+        'GET /profiles/p1/statuses': (
+          200,
+          [
+            {
+              'id': 's2',
+              'url': 'https://x/full',
+              'thumbUrl': null,
+              'caption': null,
+              'createdAt': '2026-11-18T09:00:00Z',
+              'seen': true,
+            },
+          ],
+        ),
+      });
+      final items = await ApiStatusRepository(dioWith(adapter)).of('p1');
+      expect(items.single.id, 's2');
+      expect(items.single.seen, isTrue);
+      expect(items.single.caption, isNull);
+      expect(items.single.createdAt, DateTime.utc(2026, 11, 18, 9));
+    });
+
+    test('markViewed sends PUT to the view endpoint', () async {
+      final adapter = FakeAdapter({'PUT /statuses/s2/view': (204, null)});
+      await ApiStatusRepository(dioWith(adapter)).markViewed('s2');
+      expect(adapter.requests.single.method, 'PUT');
+    });
+
+    test('a missing status is an ApiException', () async {
+      final adapter = FakeAdapter({
+        'PUT /statuses/s2/view': (404, problem('status-not-found', 404)),
+      });
+      await expectLater(
+        ApiStatusRepository(dioWith(adapter)).markViewed('s2'),
+        throwsA(
+          isA<ApiException>().having((e) => e.type, 'type', 'status-not-found'),
+        ),
+      );
+    });
+  });
+
+  group('status providers', () {
+    test('post and delete update the list from the repository', () async {
+      final repository = FakeStatusRepository();
+      final container = ProviderContainer(
+        overrides: [statusRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+
+      expect(await container.read(myStatusesProvider.future), isEmpty);
+      await container
+          .read(myStatusesProvider.notifier)
+          .post('m1', caption: 'A');
+      final posted = container.read(myStatusesProvider).requireValue;
+      expect(posted.single.caption, 'A');
+
+      await container
+          .read(myStatusesProvider.notifier)
+          .delete(posted.single.id);
+      expect(container.read(myStatusesProvider).requireValue, isEmpty);
+    });
+
+    test('seen owners accumulate', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      container.read(seenStatusOwnersProvider.notifier).markSeen('a1');
+      expect(container.read(seenStatusOwnersProvider), {'a1'});
     });
   });
 

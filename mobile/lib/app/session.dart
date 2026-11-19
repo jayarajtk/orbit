@@ -16,6 +16,7 @@ import 'package:orbit/features/profile/data/account_repository.dart';
 import 'package:orbit/features/profile/presentation/my_profile_controller.dart';
 import 'package:orbit/features/safety/presentation/safety_providers.dart';
 import 'package:orbit/features/settings/presentation/settings_controller.dart';
+import 'package:orbit/features/status/presentation/status_providers.dart';
 
 /// Sign-in, restore on launch, and sign-out.
 final sessionProvider = Provider<SessionController>(SessionController.new);
@@ -110,6 +111,9 @@ class SessionController {
       ..invalidate(albumsProvider)
       ..invalidate(settingsProvider)
       ..invalidate(plusProvider)
+      ..invalidate(myStatusesProvider)
+      ..invalidate(profileStatusesProvider)
+      ..invalidate(seenStatusOwnersProvider)
       ..invalidate(allProfilesProvider);
     // After the state is gone, so a cache failure cannot keep it alive.
     try {

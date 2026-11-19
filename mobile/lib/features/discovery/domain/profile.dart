@@ -1,3 +1,5 @@
+import 'package:orbit/features/status/domain/status.dart';
+
 /// What a member is on Orbit for.
 enum LookingFor {
   /// Just chatting.
@@ -100,6 +102,7 @@ class Profile {
     this.heightCm,
     this.relationship,
     this.photos = const [],
+    this.status = StatusRing.none,
   });
 
   /// Builds a profile from the API's `PersonView` JSON.
@@ -130,6 +133,7 @@ class Profile {
         for (final p in (json['photos'] as List<dynamic>? ?? const []))
           ProfilePhoto.fromJson(p as Map<String, dynamic>),
       ],
+      status: StatusRing.fromApi(json['status'] as String?),
     );
   }
 
@@ -179,6 +183,9 @@ class Profile {
   /// Photos with links: the first one in lists, all of them on a profile.
   /// Empty in demo mode, where placeholders stand in.
   final List<ProfilePhoto> photos;
+
+  /// Ring state of the member's statuses for the viewer.
+  final StatusRing status;
 
   /// Whether the member has at least one public photo.
   bool get hasPhoto => photoCount > 0;
