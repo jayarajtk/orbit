@@ -10,12 +10,15 @@ import 'package:orbit/core/widgets/empty_state.dart';
 import 'package:orbit/core/widgets/glass_icon_button.dart';
 import 'package:orbit/core/widgets/media_image.dart';
 import 'package:orbit/core/widgets/profile_avatar.dart';
+import 'package:orbit/core/widgets/status_ring.dart';
 import 'package:orbit/features/chat/presentation/chat_controller.dart';
 import 'package:orbit/features/chat/presentation/wave_limit.dart';
 import 'package:orbit/features/discovery/domain/profile.dart';
 import 'package:orbit/features/discovery/presentation/discovery_providers.dart';
 import 'package:orbit/features/safety/presentation/safety_providers.dart';
 import 'package:orbit/features/safety/presentation/safety_sheet.dart';
+import 'package:orbit/features/status/domain/status.dart';
+import 'package:orbit/features/status/presentation/status_providers.dart';
 import 'package:orbit/l10n/app_localizations.dart';
 
 /// W8: another member's full profile.
@@ -136,6 +139,7 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
         }
       });
     final waveUnlocksAt = ref.watch(waveBlockedUntilProvider(_profile.id));
+    final ring = ringFor(_profile, ref.watch(seenStatusOwnersProvider));
     final photos = _profile.photoCount == 0 ? 1 : _profile.photoCount;
     final details = [
       ?_profile.pronouns,
@@ -218,6 +222,38 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                     ),
                   ),
                 ),
+                if (ring != StatusRing.none)
+                  Positioned(
+                    left: 16,
+                    bottom: 12,
+                    child: Semantics(
+                      container: true,
+                      button: true,
+                      label: l10n.statusViewOf(_profile.name),
+                      excludeSemantics: true,
+                      child: GestureDetector(
+                        key: const ValueKey('status-ring'),
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () =>
+                            context.push(AppRoutes.statuses(_profile.id)),
+                        child: StatusRingFrame(
+                          ring: ring,
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: ProfileAvatar(
+                              name: _profile.name,
+                              seed: _profile.id,
+                              hasPhoto: _profile.hasPhoto,
+                              photoUrl: _profile.thumbUrl,
+                              mediaId: _profile.thumbMediaId,
+                              ownerId: _profile.id,
+                              size: 56,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 if (photos > 1)
                   Positioned(
                     bottom: 12,

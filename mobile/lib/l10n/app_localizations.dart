@@ -1630,6 +1630,54 @@ abstract class AppLocalizations {
   /// **'Add a status'**
   String get addStatusTooltip;
 
+  /// No description provided for @statusAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'New status'**
+  String get statusAdd;
+
+  /// No description provided for @statusMine.
+  ///
+  /// In en, this message translates to:
+  /// **'My status'**
+  String get statusMine;
+
+  /// No description provided for @statusCaptionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a caption'**
+  String get statusCaptionHint;
+
+  /// No description provided for @statusPost.
+  ///
+  /// In en, this message translates to:
+  /// **'Post'**
+  String get statusPost;
+
+  /// No description provided for @statusLimitReached.
+  ///
+  /// In en, this message translates to:
+  /// **'You can have 10 statuses at once. Delete one to post another.'**
+  String get statusLimitReached;
+
+  /// No description provided for @statusRingNew.
+  ///
+  /// In en, this message translates to:
+  /// **'has a new status'**
+  String get statusRingNew;
+
+  /// No description provided for @statusRingSeen.
+  ///
+  /// In en, this message translates to:
+  /// **'has a status'**
+  String get statusRingSeen;
+
+  /// No description provided for @statusViewOf.
+  ///
+  /// In en, this message translates to:
+  /// **'View {name}\'s status'**
+  String statusViewOf(String name);
+
   /// No description provided for @statusAgo.
   ///
   /// In en, this message translates to:

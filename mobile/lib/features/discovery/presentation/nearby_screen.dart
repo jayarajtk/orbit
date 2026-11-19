@@ -6,11 +6,14 @@ import 'package:orbit/core/labels.dart';
 import 'package:orbit/core/network/api_client.dart';
 import 'package:orbit/core/widgets/empty_state.dart';
 import 'package:orbit/core/widgets/profile_avatar.dart';
+import 'package:orbit/core/widgets/status_ring.dart';
 import 'package:orbit/features/discovery/data/location_repository.dart';
 import 'package:orbit/features/discovery/domain/profile.dart';
 import 'package:orbit/features/discovery/presentation/discovery_providers.dart';
 import 'package:orbit/features/discovery/presentation/filters_sheet.dart';
 import 'package:orbit/features/safety/presentation/safety_sheet.dart';
+import 'package:orbit/features/status/domain/status.dart';
+import 'package:orbit/features/status/presentation/status_providers.dart';
 import 'package:orbit/l10n/app_localizations.dart';
 
 /// W6: grid of nearby members, nearest first.
@@ -105,14 +108,15 @@ class _Grid extends StatelessWidget {
   }
 }
 
-class _FreshFaces extends StatelessWidget {
+class _FreshFaces extends ConsumerWidget {
   const _FreshFaces({required this.profiles});
 
   final List<Profile> profiles;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final seen = ref.watch(seenStatusOwnersProvider);
     return SizedBox(
       height: 92,
       child: ListView.separated(
@@ -130,22 +134,34 @@ class _FreshFaces extends StatelessWidget {
             );
           }
           final profile = profiles[index - 1];
+          final ring = ringFor(profile, seen);
           return Semantics(
             button: true,
-            label: l10n.nameWithAge(profile.name, profile.age),
+            key: ValueKey('fresh-${profile.id}'),
+            label: [
+              l10n.nameWithAge(profile.name, profile.age),
+              ?_ringLabel(l10n, ring),
+            ].join(', '),
             child: InkWell(
               customBorder: const CircleBorder(),
               onTap: () => context.push(AppRoutes.profile(profile.id)),
               child: Column(
                 children: [
-                  ProfileAvatar(
-                    name: profile.name,
-                    seed: profile.id,
-                    hasPhoto: profile.hasPhoto,
-                    photoUrl: profile.thumbUrl,
-                    mediaId: profile.thumbMediaId,
-                    ownerId: profile.id,
-                    size: 52,
+                  _RingTap(
+                    profile: profile,
+                    ring: ring,
+                    child: StatusRingFrame(
+                      ring: ring,
+                      child: ProfileAvatar(
+                        name: profile.name,
+                        seed: profile.id,
+                        hasPhoto: profile.hasPhoto,
+                        photoUrl: profile.thumbUrl,
+                        mediaId: profile.thumbMediaId,
+                        ownerId: profile.id,
+                        size: 52,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 4),
                   ExcludeSemantics(
@@ -174,67 +190,151 @@ class _ProfileTile extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final distance = l10n.distance(profile.distanceKm);
     final online = profile.online ? ', ${l10n.onlineNow}' : '';
+    final ring = ringFor(profile, ref.watch(seenStatusOwnersProvider));
+    final ringLabel = _ringLabel(l10n, ring);
+    final radius = BorderRadius.circular(10);
     return Semantics(
       button: true,
-      label: '${l10n.nameWithAge(profile.name, profile.age)}, $distance$online',
+      label:
+          '${l10n.nameWithAge(profile.name, profile.age)}, '
+          '$distance$online${ringLabel == null ? '' : ', $ringLabel'}',
       child: Material(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: radius,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => context.push(AppRoutes.profile(profile.id)),
           onLongPress: () => showSafetySheet(context, profile),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              ProfileAvatar(
-                name: profile.name,
-                seed: profile.id,
-                hasPhoto: profile.hasPhoto,
-                photoUrl: profile.thumbUrl,
-                mediaId: profile.thumbMediaId,
-                ownerId: profile.id,
-                size: double.infinity,
-                square: true,
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: ExcludeSemantics(
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(8, 12, 8, 6),
-                    color: const Color(0xB80E0C1F),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            if (profile.online) ...[
-                              const OnlineDot(size: 8),
-                              const SizedBox(width: 4),
-                            ],
-                            Flexible(
-                              child: Text(
-                                [profile.name, ?profile.age].join(' '),
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
+          child: StatusRingFrame(
+            ring: ring,
+            radius: radius,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ProfileAvatar(
+                  name: profile.name,
+                  seed: profile.id,
+                  hasPhoto: profile.hasPhoto,
+                  photoUrl: profile.thumbUrl,
+                  mediaId: profile.thumbMediaId,
+                  ownerId: profile.id,
+                  size: double.infinity,
+                  square: true,
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: ExcludeSemantics(
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(8, 12, 8, 6),
+                      color: const Color(0xB80E0C1F),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              if (profile.online) ...[
+                                const OnlineDot(size: 8),
+                                const SizedBox(width: 4),
+                              ],
+                              Flexible(
+                                child: Text(
+                                  [profile.name, ?profile.age].join(' '),
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          distance,
-                          style: Theme.of(context).textTheme.labelSmall,
-                        ),
-                      ],
+                            ],
+                          ),
+                          Text(
+                            distance,
+                            style: Theme.of(context).textTheme.labelSmall,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+                if (ring != StatusRing.none)
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: _RingTap(
+                      profile: profile,
+                      ring: ring,
+                      child: _RingBadge(ring: ring),
+                    ),
+                  ),
+              ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The text a screen reader adds for [ring], or null without a status.
+String? _ringLabel(AppLocalizations l10n, StatusRing ring) => switch (ring) {
+  StatusRing.none => null,
+  StatusRing.unseen => l10n.statusRingNew,
+  StatusRing.seen => l10n.statusRingSeen,
+};
+
+/// Opens [profile]'s statuses when tapped and there is a status to see;
+/// at least 44 x 44 so it is easy to hit.
+class _RingTap extends StatelessWidget {
+  const _RingTap({
+    required this.profile,
+    required this.ring,
+    required this.child,
+  });
+
+  final Profile profile;
+  final StatusRing ring;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (ring == StatusRing.none) return child;
+    return Semantics(
+      container: true,
+      button: true,
+      label: AppLocalizations.of(context).statusViewOf(profile.name),
+      excludeSemantics: true,
+      child: GestureDetector(
+        key: ValueKey('status-ring-${profile.id}'),
+        behavior: HitTestBehavior.opaque,
+        onTap: () => context.push(AppRoutes.statuses(profile.id)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+          child: Center(widthFactor: 1, heightFactor: 1, child: child),
+        ),
+      ),
+    );
+  }
+}
+
+/// A small ringed dot on a tile that marks the tappable status target.
+class _RingBadge extends StatelessWidget {
+  const _RingBadge({required this.ring});
+
+  final StatusRing ring;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: 26,
+      child: StatusRingFrame(
+        ring: ring,
+        child: const DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Color(0xB80E0C1F),
+          ),
+          child: Icon(Icons.play_arrow_rounded, size: 16, color: Colors.white),
         ),
       ),
     );

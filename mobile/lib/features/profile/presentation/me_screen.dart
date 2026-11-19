@@ -3,10 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:orbit/app/router.dart';
 import 'package:orbit/core/widgets/profile_avatar.dart';
+import 'package:orbit/core/widgets/status_ring.dart';
 import 'package:orbit/features/media/data/media_capture.dart';
 import 'package:orbit/features/plus/presentation/plus_controller.dart';
 import 'package:orbit/features/profile/presentation/my_photos_actions.dart';
 import 'package:orbit/features/profile/presentation/my_profile_controller.dart';
+import 'package:orbit/features/status/domain/status.dart';
+import 'package:orbit/features/status/presentation/status_composer.dart';
+import 'package:orbit/features/status/presentation/status_providers.dart';
 import 'package:orbit/l10n/app_localizations.dart';
 
 /// W13: the member's own hub.
@@ -20,6 +24,7 @@ class MeScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final me = ref.watch(myProfileProvider);
     final hasPlus = ref.watch(plusProvider);
+    final hasStatus = ref.watch(myStatusesProvider).value?.isNotEmpty ?? false;
     if (me == null) return const SizedBox.shrink();
 
     final items = [
@@ -47,8 +52,7 @@ class MeScreen extends ConsumerWidget {
         children: [
           Row(
             children: [
-              // Posting a status arrives with the status feature.
-              MeAvatar(onAddStatus: () {}),
+              MeAvatar(onAddStatus: () => addStatus(context, ref)),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -94,6 +98,14 @@ class MeScreen extends ConsumerWidget {
             margin: EdgeInsets.zero,
             child: Column(
               children: [
+                ListTile(
+                  leading: const Icon(Icons.motion_photos_on_outlined),
+                  title: Text(l10n.statusMine),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => hasStatus
+                      ? context.push(AppRoutes.myStatuses)
+                      : addStatus(context, ref),
+                ),
                 for (final (icon, label, route) in items)
                   ListTile(
                     leading: Icon(icon),
@@ -141,6 +153,11 @@ class MeAvatar extends ConsumerWidget {
     final me = ref.watch(myProfileProvider);
     if (me == null) return const SizedBox.shrink();
     final main = me.photos.isEmpty ? null : me.photos.first;
+    // The member's own statuses are never "unseen" by them, but the ring
+    // still says there is something live.
+    final ring = (ref.watch(myStatusesProvider).value?.isNotEmpty ?? false)
+        ? StatusRing.unseen
+        : StatusRing.none;
     final onAddStatus = this.onAddStatus;
     return SizedBox.square(
       dimension: _size + _badge / 2,
@@ -157,14 +174,17 @@ class MeAvatar extends ConsumerWidget {
                 onTap: () => main == null
                     ? _addFirstPhoto(context, ref)
                     : context.push('${AppRoutes.myPhotos}?index=0'),
-                child: Hero(
-                  tag: myMainPhotoHeroTag,
-                  child: ProfileAvatar(
-                    name: me.displayName,
-                    seed: 'me',
-                    size: _size,
-                    photoUrl: main?.thumbUrl,
-                    mediaId: main?.id,
+                child: StatusRingFrame(
+                  ring: ring,
+                  child: Hero(
+                    tag: myMainPhotoHeroTag,
+                    child: ProfileAvatar(
+                      name: me.displayName,
+                      seed: 'me',
+                      size: _size,
+                      photoUrl: main?.thumbUrl,
+                      mediaId: main?.id,
+                    ),
                   ),
                 ),
               ),

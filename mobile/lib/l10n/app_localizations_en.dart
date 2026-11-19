@@ -873,6 +873,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addStatusTooltip => 'Add a status';
 
   @override
+  String get statusAdd => 'New status';
+
+  @override
+  String get statusMine => 'My status';
+
+  @override
+  String get statusCaptionHint => 'Add a caption';
+
+  @override
+  String get statusPost => 'Post';
+
+  @override
+  String get statusLimitReached =>
+      'You can have 10 statuses at once. Delete one to post another.';
+
+  @override
+  String get statusRingNew => 'has a new status';
+
+  @override
+  String get statusRingSeen => 'has a status';
+
+  @override
+  String statusViewOf(String name) {
+    return 'View $name\'s status';
+  }
+
+  @override
   String statusAgo(String unit, int count) {
     String _temp0 = intl.Intl.selectLogic(
       unit,
