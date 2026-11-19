@@ -25,6 +25,7 @@ import 'package:orbit/l10n/app_localizations.dart';
 
 import '../helpers/fake_api.dart';
 import '../helpers/pump_app.dart';
+import '../helpers/sdk_fonts.dart';
 
 /// The phone every golden is taken on, in logical pixels.
 const _phone = Size(393, 852);
@@ -61,42 +62,6 @@ class _SolidImages extends Fake implements BaseCacheManager {
       FileInfo(swatch.file, FileSource.Cache, swatch.validTill, url),
     );
   }
-}
-
-/// Loads the fonts that ship with the Flutter SDK, so text and icons render
-/// as glyphs instead of the test font's solid blocks.
-Future<void> _loadFonts() async {
-  final root = Platform.environment['FLUTTER_ROOT'];
-  if (root == null || root.isEmpty) {
-    throw StateError('FLUTTER_ROOT is not set; run via `flutter test`.');
-  }
-  final fonts = Directory('$root/bin/cache/artifacts/material_fonts');
-  if (!fonts.existsSync()) {
-    throw StateError(
-      'No SDK fonts at ${fonts.path}; run `flutter precache` and retry.',
-    );
-  }
-  Future<void> load(String family, List<String> names) async {
-    final loader = FontLoader(family);
-    for (final name in names) {
-      final bytes = File('${fonts.path}/$name').readAsBytes();
-      loader.addFont(bytes.then(ByteData.sublistView));
-    }
-    await loader.load();
-  }
-
-  await load('Roboto', [
-    for (final weight in [
-      'Thin',
-      'Light',
-      'Regular',
-      'Medium',
-      'Bold',
-      'Black',
-    ])
-      'Roboto-$weight.ttf',
-  ]);
-  await load('MaterialIcons', ['MaterialIcons-Regular.otf']);
 }
 
 /// Writes one solid PNG per swatch through the cache's own file system, which
@@ -329,7 +294,7 @@ void main() {
 
   setUpAll(() async {
     dir = Directory.systemTemp.createTempSync('orbit-golden-');
-    await _loadFonts();
+    await loadSdkFonts();
     swatches = await _writeSwatches(dir);
   });
 

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbit/core/widgets/media_image.dart';
 import 'package:orbit/l10n/app_localizations.dart';
@@ -195,83 +196,91 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
     final showChrome = _drag == 0;
     final bottomBar = widget.bottomBar;
     const scrim = Colors.black; // photo-overlay
-    return Scaffold(
-      backgroundColor: scrim.withValues(alpha: backdrop),
-      body: Listener(
-        onPointerDown: _onPointerDown,
-        onPointerMove: _onPointerMove,
-        onPointerUp: _onPointerEnd,
-        onPointerCancel: _onPointerEnd,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            TweenAnimationBuilder<double>(
-              tween: Tween(end: _drag),
-              duration: _dragging || still ? Duration.zero : _motion,
-              curve: Curves.easeOut,
-              builder: (context, offset, child) =>
-                  Transform.translate(offset: Offset(0, offset), child: child),
-              child: IconTheme(
-                data: const IconThemeData(color: Colors.white), // photo-overlay
-                child: PageView.builder(
-                  controller: _pages,
-                  itemCount: widget.items.length,
-                  physics: _zoomed || widget.busy
-                      ? const NeverScrollableScrollPhysics()
-                      : null,
-                  onPageChanged: (page) {
-                    setState(() {
-                      _index = page;
-                      _zoomed = false;
-                    });
-                    _precacheAround(page);
-                  },
-                  itemBuilder: (context, i) => _ZoomablePage(
-                    key: ValueKey(i),
-                    item: widget.items[i],
-                    heroTag: i == widget.initialIndex ? widget.heroTag : null,
-                    onZoomChanged: (zoomed) {
-                      if (i == _index && zoomed != _zoomed) {
-                        setState(() => _zoomed = zoomed);
-                      }
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      // Drawn over black, so the icons stay white in both modes.
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: scrim.withValues(alpha: backdrop),
+        body: Listener(
+          onPointerDown: _onPointerDown,
+          onPointerMove: _onPointerMove,
+          onPointerUp: _onPointerEnd,
+          onPointerCancel: _onPointerEnd,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              TweenAnimationBuilder<double>(
+                tween: Tween(end: _drag),
+                duration: _dragging || still ? Duration.zero : _motion,
+                curve: Curves.easeOut,
+                builder: (context, offset, child) => Transform.translate(
+                  offset: Offset(0, offset),
+                  child: child,
+                ),
+                child: IconTheme(
+                  data: const IconThemeData(
+                    color: Colors.white, // photo-overlay
+                  ),
+                  child: PageView.builder(
+                    controller: _pages,
+                    itemCount: widget.items.length,
+                    physics: _zoomed || widget.busy
+                        ? const NeverScrollableScrollPhysics()
+                        : null,
+                    onPageChanged: (page) {
+                      setState(() {
+                        _index = page;
+                        _zoomed = false;
+                      });
+                      _precacheAround(page);
                     },
+                    itemBuilder: (context, i) => _ZoomablePage(
+                      key: ValueKey(i),
+                      item: widget.items[i],
+                      heroTag: i == widget.initialIndex ? widget.heroTag : null,
+                      onZoomChanged: (zoomed) {
+                        if (i == _index && zoomed != _zoomed) {
+                          setState(() => _zoomed = zoomed);
+                        }
+                      },
+                    ),
                   ),
                 ),
               ),
-            ),
-            if (widget.busy) const Center(child: CircularProgressIndicator()),
-            if (showChrome)
-              SafeArea(
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: Row(
-                    children: [
-                      IconButton(
-                        tooltip: l10n.closeTooltip,
-                        color: Colors.white, // photo-overlay
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                      Expanded(
-                        child: Text(
-                          '${_index + 1} / ${widget.items.length}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white, // photo-overlay
+              if (widget.busy) const Center(child: CircularProgressIndicator()),
+              if (showChrome)
+                SafeArea(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: Row(
+                      children: [
+                        IconButton(
+                          tooltip: l10n.closeTooltip,
+                          color: Colors.white, // photo-overlay
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                        Expanded(
+                          child: Text(
+                            '${_index + 1} / ${widget.items.length}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white, // photo-overlay
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 48),
-                    ],
+                        const SizedBox(width: 48),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            if (showChrome && bottomBar != null)
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: SafeArea(child: bottomBar(context, _index)),
-              ),
-          ],
+              if (showChrome && bottomBar != null)
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: SafeArea(child: bottomBar(context, _index)),
+                ),
+            ],
+          ),
         ),
       ),
     );

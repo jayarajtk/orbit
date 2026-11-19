@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbit/core/clock.dart';
 import 'package:orbit/core/network/api_client.dart';
@@ -125,6 +126,15 @@ class _StatusViewerScreenState extends ConsumerState<StatusViewerScreen> {
     final profile = _isMine
         ? null
         : ref.watch(profileByIdProvider(profileId)).value;
+    // Every state is drawn over black, so the status bar icons stay white in
+    // both modes.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: _body(slides, profile),
+    );
+  }
+
+  Widget _body(AsyncValue<List<_Slide>> slides, Profile? profile) {
     return slides.when(
       data: (list) => list.isEmpty
           ? const _CloseOnce()

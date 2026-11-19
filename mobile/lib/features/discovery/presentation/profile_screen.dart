@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:orbit/app/router.dart';
@@ -195,6 +196,9 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
         }
       });
     final waveUnlocksAt = ref.watch(waveBlockedUntilProvider(_profile.id));
+    final waveWait = waveUnlocksAt == null
+        ? null
+        : waitLabel(waveUnlocksAt.difference(ref.read(clockProvider)()));
     final ring = ringFor(_profile, ref.watch(seenStatusOwnersProvider));
     final photos = _profile.photoCount == 0 ? 1 : _profile.photoCount;
     final details = [
@@ -207,6 +211,8 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
+        // The bar sits over the photo, which is dark at the top in both modes.
+        systemOverlayStyle: SystemUiOverlayStyle.light,
         leading: GlassIconButton(
           icon: Icons.arrow_back,
           tooltip: l10n.backTooltip,
@@ -318,22 +324,21 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                                       ? _wave
                                       : null,
                                   icon: const Icon(Icons.waving_hand_outlined),
-                                  label: Text(
-                                    waveUnlocksAt == null
-                                        ? l10n.waveButton
-                                        : l10n.waveAgainIn(
-                                            waitLabel(
-                                              waveUnlocksAt.difference(
-                                                ref.read(clockProvider)(),
-                                              ),
-                                            ),
+                                  label: waveWait == null
+                                      ? Text(l10n.waveButton)
+                                      : Semantics(
+                                          // The button shows the short form
+                                          // but is read out in full.
+                                          label: l10n.waveAgainIn(waveWait),
+                                          excludeSemantics: true,
+                                          child: Text(
+                                            l10n.waveLockedIn(waveWait),
                                           ),
-                                  ),
+                                        ),
                                 ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                flex: 2,
                                 child: FilledButton.icon(
                                   onPressed: () =>
                                       context.push(AppRoutes.chat(_profile.id)),

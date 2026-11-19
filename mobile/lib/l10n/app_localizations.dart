@@ -520,6 +520,12 @@ abstract class AppLocalizations {
   /// **'Wave again in {time}'**
   String waveAgainIn(String time);
 
+  /// Short label on the disabled Wave button; waveAgainIn is its spoken form.
+  ///
+  /// In en, this message translates to:
+  /// **'Wave in {time}'**
+  String waveLockedIn(String time);
+
   /// No description provided for @waveLimitReached.
   ///
   /// In en, this message translates to:

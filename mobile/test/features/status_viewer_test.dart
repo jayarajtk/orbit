@@ -19,6 +19,7 @@ import 'package:orbit/features/status/presentation/status_viewer.dart';
 import 'package:orbit/l10n/app_localizations.dart';
 
 import '../helpers/fake_api.dart';
+import '../helpers/status_bar.dart';
 
 /// Serves no image bytes: URLs containing `gone` fail at once (an expired
 /// status), every other image stays loading, so only the viewer's own
@@ -244,6 +245,17 @@ void main() {
     expect(find.byType(StatusViewerScreen), findsNothing);
     semantics.dispose();
   });
+
+  for (final brightness in Brightness.values) {
+    testWidgets('the viewer keeps light status bar icons in ${brightness.name} '
+        'mode', (tester) async {
+      tester.platformDispatcher.platformBrightnessTestValue = brightness;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      await _open(tester, theirs: _threeStatuses);
+
+      expect(hasLightIcons(effectiveStatusBarStyle(tester)), isTrue);
+    });
+  }
 
   testWidgets('tap right goes next, tap left goes back', (tester) async {
     await _open(tester, theirs: _threeStatuses);

@@ -23,6 +23,7 @@ import 'package:orbit/features/status/domain/status.dart';
 import 'package:orbit/l10n/app_localizations_en.dart';
 
 import '../helpers/pump_app.dart';
+import '../helpers/status_bar.dart';
 
 /// Serves the grid a one-photo copy of Alex and the profile endpoint the
 /// two-photo one, as when a member adds a photo after the grid loaded.
@@ -258,6 +259,24 @@ void main() {
     expect(viewer.items.map((i) => i.mediaId), ['ph1', 'ph2']);
   });
 
+  for (final brightness in Brightness.values) {
+    testWidgets('the photo viewer has light status bar icons in '
+        '${brightness.name} mode', (tester) async {
+      tester.platformDispatcher.platformBrightnessTestValue = brightness;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      await pumpOrbit(tester, profiles: _PhotosRepository());
+      await onboard(tester);
+      await tapText(tester, 'Alex 27');
+
+      final size = tester.view.physicalSize / tester.view.devicePixelRatio;
+      await tester.tapAt(Offset(size.width / 2, 250));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PhotoViewer), findsOneWidget);
+      expect(hasLightIcons(effectiveStatusBarStyle(tester)), isTrue);
+    });
+  }
+
   testWidgets('a screen reader opens the viewer from a profile photo', (
     tester,
   ) async {
@@ -308,7 +327,7 @@ void main() {
     await tapText(tester, 'Alex 27');
 
     // The oldest wave was 40 minutes ago, so waving unlocks in 23h20m.
-    final button = find.widgetWithText(OutlinedButton, 'Wave again in 24h');
+    final button = find.widgetWithText(OutlinedButton, 'Wave in 24h');
     expect(button, findsOneWidget);
     expect(tester.widget<OutlinedButton>(button).onPressed, isNull);
     await tester.ensureVisible(button);

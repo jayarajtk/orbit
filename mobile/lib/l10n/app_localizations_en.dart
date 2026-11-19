@@ -239,6 +239,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String waveLockedIn(String time) {
+    return 'Wave in $time';
+  }
+
+  @override
   String waveLimitReached(String time) {
     return 'You\'ve waved twice today. Try again in $time.';
   }

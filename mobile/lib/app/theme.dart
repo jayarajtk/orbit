@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 
 /// Colour tokens for both brightnesses (spec section 7.1). Widgets read them
 /// with `context.tokens`, or use the [ColorScheme] built from them.
@@ -330,6 +331,12 @@ ThemeData buildOrbitTheme(Brightness brightness) {
       backgroundColor: scheme.surface,
       scrolledUnderElevation: 0,
       surfaceTintColor: Colors.transparent,
+      // A transparent bar makes Flutter guess light icons whatever the page
+      // colour is; the icons follow the theme instead. Screens drawn over a
+      // photo or black set `SystemUiOverlayStyle.light` themselves.
+      systemOverlayStyle: isDark
+          ? SystemUiOverlayStyle.light
+          : SystemUiOverlayStyle.dark,
     ),
     cardTheme: CardThemeData(
       color: scheme.surfaceContainer,
