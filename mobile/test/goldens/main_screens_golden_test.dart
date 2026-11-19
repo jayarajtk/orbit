@@ -296,7 +296,25 @@ Future<void> _pumpApp(
 }
 
 Future<void> _matches(WidgetTester tester, String name) async {
-  await expectLater(find.byType(MaterialApp), matchesGoldenFile('$name.png'));
+  // The test binding draws every elevation shadow as a solid outline in the
+  // shadow colour, which showed as a hard black ring round the album's
+  // "Add photos" button. Paint real shadows, as a phone does, for the
+  // capture only: the binding checks the flag is back when the test ends.
+  final bindingDefault = debugDisableShadows;
+  debugDisableShadows = false;
+  try {
+    await _repaint(tester);
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('$name.png'));
+  } finally {
+    debugDisableShadows = bindingDefault;
+  }
+}
+
+Future<void> _repaint(WidgetTester tester) async {
+  for (final object in tester.allRenderObjects) {
+    object.markNeedsPaint();
+  }
+  await tester.pump();
 }
 
 void main() {

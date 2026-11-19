@@ -200,20 +200,68 @@ ThemeData buildOrbitTheme(Brightness brightness) {
   // Black text on the accent: white on #E8513D is 3.7:1, below AA, and white
   // on the dark accent is lower still. Black gives 5.7:1 and 7.4:1.
   const onAccent = Color(0xFF000000);
-  final base = isDark ? const ColorScheme.dark() : const ColorScheme.light();
-  final scheme = base.copyWith(
+  // The spec has no error token: Apple's accessible system reds, which keep
+  // AA as text on the page and under their label colour.
+  final danger = isDark ? const Color(0xFFFF6961) : const Color(0xFFD70015);
+  final onDanger = isDark ? const Color(0xFF000000) : const Color(0xFFFFFFFF);
+  // Snack bars and other inverse surfaces use the other mode's surface. The
+  // light accent is too pale on white for AA, so the dark mode inverse
+  // accent is its darker read-tick shade.
+  final inverse = isDark ? OrbitTokens.light : OrbitTokens.dark;
+  final inverseAccent = isDark ? inverse.readTick : inverse.accent;
+  // Every role is set, so none falls back to the Material 2 purple and teal
+  // that `ColorScheme.light()` and `.dark()` start from. One brand colour:
+  // the primary, secondary and tertiary families all use the accent, and
+  // the containers that carry no emphasis use the raised surface.
+  final scheme = ColorScheme(
+    brightness: brightness,
     primary: tokens.accent,
     onPrimary: onAccent,
+    primaryContainer: tokens.accent,
+    onPrimaryContainer: onAccent,
+    primaryFixed: tokens.accent,
+    primaryFixedDim: tokens.accent,
+    onPrimaryFixed: onAccent,
+    onPrimaryFixedVariant: onAccent,
+    secondary: tokens.accent,
+    onSecondary: onAccent,
+    secondaryContainer: tokens.surfaceRaised,
+    onSecondaryContainer: tokens.text,
+    secondaryFixed: tokens.surfaceRaised,
+    secondaryFixedDim: tokens.surfaceRaised,
+    onSecondaryFixed: tokens.text,
+    onSecondaryFixedVariant: tokens.textMuted,
+    tertiary: tokens.accent,
+    onTertiary: onAccent,
+    tertiaryContainer: tokens.accent,
+    onTertiaryContainer: onAccent,
+    tertiaryFixed: tokens.accent,
+    tertiaryFixedDim: tokens.accent,
+    onTertiaryFixed: onAccent,
+    onTertiaryFixedVariant: onAccent,
+    error: danger,
+    onError: onDanger,
+    errorContainer: danger,
+    onErrorContainer: onDanger,
     surface: tokens.ground,
     onSurface: tokens.text,
+    surfaceDim: tokens.ground,
+    surfaceBright: tokens.surface,
+    surfaceContainerLowest: tokens.surface,
+    surfaceContainerLow: tokens.surface,
     surfaceContainer: tokens.surface,
     surfaceContainerHigh: tokens.surface,
-    surfaceContainerLow: tokens.surface,
     surfaceContainerHighest: tokens.surfaceRaised,
     onSurfaceVariant: tokens.textMuted,
     outline: tokens.hairline,
-    secondaryContainer: tokens.surfaceRaised,
-    onSecondaryContainer: tokens.text,
+    outlineVariant: tokens.hairline,
+    shadow: const Color(0xFF000000),
+    scrim: const Color(0xFF000000),
+    inverseSurface: inverse.surface,
+    onInverseSurface: inverse.text,
+    inversePrimary: inverseAccent,
+    // Depth comes from surface contrast (spec 7.2), never a tint.
+    surfaceTint: const Color(0x00000000),
   );
   final fieldBorder = OutlineInputBorder(
     borderRadius: BorderRadius.circular(12),

@@ -15,6 +15,50 @@ double contrastRatio(Color a, Color b) {
 OrbitTokens tokensOf(Brightness brightness) =>
     buildOrbitTheme(brightness).extension<OrbitTokens>()!;
 
+/// Every colour role of [scheme], by name, as its diagnostics list them.
+Map<String, Color> schemeRoles(ColorScheme scheme) => {
+  for (final property in scheme.toDiagnosticsNode().getProperties())
+    if (property.value case final Color colour) property.name!: colour,
+};
+
+/// The scheme's content-on-fill pairs that carry text, at the AA minimum.
+Map<String, (Color, Color, double)> schemePairs(ColorScheme s) => {
+  'onPrimaryContainer on primaryContainer': (
+    s.onPrimaryContainer,
+    s.primaryContainer,
+    4.5,
+  ),
+  'onSecondary on secondary': (s.onSecondary, s.secondary, 4.5),
+  'onSecondaryContainer on secondaryContainer': (
+    s.onSecondaryContainer,
+    s.secondaryContainer,
+    4.5,
+  ),
+  'onTertiary on tertiary': (s.onTertiary, s.tertiary, 4.5),
+  'onTertiaryContainer on tertiaryContainer': (
+    s.onTertiaryContainer,
+    s.tertiaryContainer,
+    4.5,
+  ),
+  'onError on error': (s.onError, s.error, 4.5),
+  'onErrorContainer on errorContainer': (
+    s.onErrorContainer,
+    s.errorContainer,
+    4.5,
+  ),
+  'error on surface': (s.error, s.surface, 4.5),
+  'onInverseSurface on inverseSurface': (
+    s.onInverseSurface,
+    s.inverseSurface,
+    4.5,
+  ),
+  'inversePrimary on inverseSurface': (
+    s.inversePrimary,
+    s.inverseSurface,
+    4.5,
+  ),
+};
+
 void main() {
   group('tokens match the spec in both modes', () {
     test('dark', () {
@@ -62,6 +106,27 @@ void main() {
     });
   });
 
+  group('no colour scheme role keeps a Material default', () {
+    // Every colour the stock schemes use, bar plain black and white: a role
+    // left at one of these was never mapped from the tokens (the purple
+    // "Add photos" button was primaryContainer at #6200EE).
+    final defaults = {
+      for (final stock in [const ColorScheme.light(), const ColorScheme.dark()])
+        ...schemeRoles(stock).values,
+    }..removeAll(const [Color(0xFF000000), Color(0xFFFFFFFF)]);
+
+    for (final brightness in Brightness.values) {
+      test(brightness.name, () {
+        final roles = schemeRoles(buildOrbitTheme(brightness).colorScheme);
+        final leftovers = {
+          for (final MapEntry(key: role, value: colour) in roles.entries)
+            if (defaults.contains(colour)) role: colour,
+        };
+        expect(leftovers, isEmpty);
+      });
+    }
+  });
+
   for (final brightness in Brightness.values) {
     group('text pairs meet WCAG AA in ${brightness.name} mode', () {
       final theme = buildOrbitTheme(brightness);
@@ -74,6 +139,7 @@ void main() {
         'accent on ground': (t.accent, t.ground, 3.0),
         'online on ground': (t.online, t.ground, 3.0),
         'label on accent': (theme.colorScheme.onPrimary, t.accent, 4.5),
+        ...schemePairs(theme.colorScheme),
       };
       for (final MapEntry(key: name, value: (fg, bg, min)) in pairs.entries) {
         test(name, () {
