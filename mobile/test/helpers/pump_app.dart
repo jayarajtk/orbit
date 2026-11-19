@@ -30,7 +30,7 @@ Future<void> pumpOrbit(
   DateTime? now,
   ProfileRepository? profiles,
   List<Override> overrides = const [],
-  FakeImageCache? imageCache,
+  OrbitImageCache? imageCache,
 }) async {
   tester.view.physicalSize = const Size(1170, 2532);
   tester.view.devicePixelRatio = 3;
