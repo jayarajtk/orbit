@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:orbit/app/router.dart';
+import 'package:orbit/app/theme.dart';
 import 'package:orbit/core/clock.dart';
 import 'package:orbit/core/widgets/empty_state.dart';
 import 'package:orbit/core/widgets/profile_avatar.dart';
@@ -324,7 +325,7 @@ class _ChatViewState extends ConsumerState<_ChatView> {
                     Text(
                       l10n.onlineNow,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: const Color(0xFF4ADE80),
+                        color: context.tokens.online,
                       ),
                     ),
                 ],

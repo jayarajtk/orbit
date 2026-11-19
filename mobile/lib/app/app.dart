@@ -13,7 +13,10 @@ class OrbitApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp.router(
       onGenerateTitle: (context) => AppLocalizations.of(context).appName,
-      theme: buildOrbitTheme(),
+      theme: buildOrbitTheme(Brightness.light),
+      // `themeMode` stays at its default, ThemeMode.system, so the phone's
+      // light or dark setting picks the theme.
+      darkTheme: buildOrbitTheme(Brightness.dark),
       routerConfig: ref.watch(routerProvider),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,

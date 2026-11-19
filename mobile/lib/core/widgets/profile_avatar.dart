@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:orbit/app/theme.dart';
 import 'package:orbit/core/widgets/media_image.dart';
 
 /// A member's photo when [photoUrl] is set; otherwise (and while it loads or
@@ -18,16 +19,6 @@ class ProfileAvatar extends StatelessWidget {
     this.variant = MediaVariant.thumb,
     super.key,
   });
-
-  // White text on each of these is at least 4.5:1 (WCAG AA).
-  static const _palette = [
-    Color(0xFF5B4FCF),
-    Color(0xFFA63E62),
-    Color(0xFF2B7366),
-    Color(0xFF7E5219),
-    Color(0xFF3A67A8),
-    Color(0xFF7446A0),
-  ];
 
   /// Display name; its first letter is shown.
   final String name;
@@ -99,9 +90,9 @@ class ProfileAvatar extends StatelessWidget {
 
   Widget _placeholder(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final color = hasPhoto
-        ? _palette[seed.hashCode.abs() % _palette.length]
-        : scheme.surfaceContainerHighest;
+    final tokens = context.tokens;
+    final gradients = tokens.avatarGradients;
+    final (start, end) = gradients[seed.hashCode.abs() % gradients.length];
     final glyphSize = size.isFinite ? size * 0.42 : 44.0;
     return ExcludeSemantics(
       child: Container(
@@ -109,7 +100,14 @@ class ProfileAvatar extends StatelessWidget {
         height: size,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: color,
+          color: hasPhoto ? null : scheme.surfaceContainerHighest,
+          gradient: hasPhoto
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [start, end],
+                )
+              : null,
           shape: square ? BoxShape.rectangle : BoxShape.circle,
           borderRadius: square ? BorderRadius.circular(12) : null,
         ),
@@ -117,7 +115,7 @@ class ProfileAvatar extends StatelessWidget {
             ? Text(
                 name.isEmpty ? '?' : name.characters.first.toUpperCase(),
                 style: TextStyle(
-                  color: Colors.white,
+                  color: tokens.onAvatar,
                   fontSize: glyphSize,
                   fontWeight: FontWeight.w700,
                 ),
@@ -146,7 +144,7 @@ class OnlineDot extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: const Color(0xFF4ADE80),
+        color: context.tokens.online,
         shape: BoxShape.circle,
         border: Border.all(
           color: Theme.of(context).colorScheme.surface,

@@ -194,8 +194,9 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
     final backdrop = (1 - _drag / (height * 0.5)).clamp(0.0, 1.0);
     final showChrome = _drag == 0;
     final bottomBar = widget.bottomBar;
+    const scrim = Colors.black; // photo-overlay
     return Scaffold(
-      backgroundColor: Colors.black.withValues(alpha: backdrop),
+      backgroundColor: scrim.withValues(alpha: backdrop),
       body: Listener(
         onPointerDown: _onPointerDown,
         onPointerMove: _onPointerMove,
@@ -211,7 +212,7 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
               builder: (context, offset, child) =>
                   Transform.translate(offset: Offset(0, offset), child: child),
               child: IconTheme(
-                data: const IconThemeData(color: Colors.white),
+                data: const IconThemeData(color: Colors.white), // photo-overlay
                 child: PageView.builder(
                   controller: _pages,
                   itemCount: widget.items.length,
@@ -247,7 +248,7 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
                     children: [
                       IconButton(
                         tooltip: l10n.closeTooltip,
-                        color: Colors.white,
+                        color: Colors.white, // photo-overlay
                         icon: const Icon(Icons.close),
                         onPressed: () => Navigator.of(context).pop(),
                       ),
@@ -255,7 +256,9 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
                         child: Text(
                           '${_index + 1} / ${widget.items.length}',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.white),
+                          style: const TextStyle(
+                            color: Colors.white, // photo-overlay
+                          ),
                         ),
                       ),
                       const SizedBox(width: 48),

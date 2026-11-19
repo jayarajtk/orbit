@@ -469,9 +469,9 @@ class _StatusPlayerState extends ConsumerState<_StatusPlayer>
     final caption = slide.caption;
     final profile = widget.profile;
     final now = ref.read(clockProvider)();
+    const scrim = Colors.black; // photo-overlay
     return Scaffold(
-      // photo-overlay
-      backgroundColor: Colors.black.withValues(alpha: backdrop),
+      backgroundColor: scrim.withValues(alpha: backdrop),
       body: Listener(
         onPointerDown: _onPointerDown,
         onPointerMove: _onPointerMove,
@@ -499,7 +499,9 @@ class _StatusPlayerState extends ConsumerState<_StatusPlayer>
                   thumbUrl: slide.thumbUrl,
                   ownerId: _isMine ? null : widget.profileId,
                   fit: BoxFit.contain,
-                  placeholder: const ColoredBox(color: Colors.black),
+                  placeholder: const ColoredBox(
+                    color: Colors.black, // photo-overlay
+                  ),
                 ),
               ),
             ),
@@ -568,15 +570,15 @@ class _StatusPlayerState extends ConsumerState<_StatusPlayer>
                         Container(
                           width: double.infinity,
                           // photo-overlay: 0.6 black keeps white text AA.
-                          color: Colors.black.withValues(alpha: 0.6),
+                          color: scrim.withValues(alpha: 0.6),
                           padding: const EdgeInsets.all(16),
                           child: Text(
                             caption,
                             textAlign: TextAlign.center,
                             style: Theme.of(context).textTheme.bodyLarge
                                 ?.copyWith(
-                                  color: Colors.white,
-                                ), // photo-overlay
+                                  color: Colors.white, // photo-overlay
+                                ),
                           ),
                         ),
                       if (_isMine)
@@ -642,6 +644,7 @@ class _Segments extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const track = Colors.white; // photo-overlay
     final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
@@ -661,14 +664,13 @@ class _Segments extends StatelessWidget {
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          // photo-overlay
                           ColoredBox(
-                            color: Colors.white.withValues(alpha: 0.4),
+                            color: track.withValues(alpha: 0.4),
                           ),
                           if (i < index)
                             const ColoredBox(
-                              color: Colors.white,
-                            ) // photo-overlay
+                              color: Colors.white, // photo-overlay
+                            )
                           else if (i == index)
                             AnimatedBuilder(
                               animation: progress,
@@ -677,8 +679,9 @@ class _Segments extends StatelessWidget {
                                 child: FractionallySizedBox(
                                   widthFactor: progress.value,
                                   heightFactor: 1,
-                                  // photo-overlay
-                                  child: const ColoredBox(color: Colors.white),
+                                  child: const ColoredBox(
+                                    color: Colors.white, // photo-overlay
+                                  ),
                                 ),
                               ),
                             ),

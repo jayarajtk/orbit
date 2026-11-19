@@ -227,7 +227,7 @@ class _ProfileTile extends ConsumerWidget {
                   child: ExcludeSemantics(
                     child: Container(
                       padding: const EdgeInsets.fromLTRB(8, 12, 8, 6),
-                      color: const Color(0xB80E0C1F),
+                      color: const Color(0xB80E0C1F), // photo-overlay
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [

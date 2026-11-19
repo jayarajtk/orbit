@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:orbit/app/theme.dart';
 import 'package:orbit/features/status/domain/status.dart';
 
 /// Draws the status ring of [ring] over the edge of [child], inset so it
@@ -30,10 +31,10 @@ class StatusRingFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (ring == StatusRing.none) return child;
-    final scheme = Theme.of(context).colorScheme;
+    final tokens = context.tokens;
     final colors = ring == StatusRing.unseen
-        ? [scheme.primary, const Color(0xFFFF9F0A)] // ring-gradient
-        : [scheme.onSurfaceVariant.withValues(alpha: 0.5)];
+        ? [tokens.ringStart, tokens.ringEnd]
+        : [tokens.textMuted.withValues(alpha: 0.5)];
     return CustomPaint(
       foregroundPainter: StatusRingPainter(
         colors: colors,

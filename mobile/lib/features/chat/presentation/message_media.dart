@@ -394,10 +394,10 @@ class _VideoViewerState extends State<VideoViewer> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.black, // photo-overlay
       appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.black, // photo-overlay
+        foregroundColor: Colors.white, // photo-overlay
         leading: IconButton(
           tooltip: l10n.closeTooltip,
           icon: const Icon(Icons.close),
@@ -408,7 +408,7 @@ class _VideoViewerState extends State<VideoViewer> {
         child: _failed
             ? Text(
                 l10n.mediaUnavailable,
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: Colors.white), // photo-overlay
               )
             : !_ready
             ? const CircularProgressIndicator()

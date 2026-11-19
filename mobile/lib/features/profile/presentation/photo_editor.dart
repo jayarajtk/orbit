@@ -119,7 +119,7 @@ class _PhotoTile extends StatelessWidget {
       photo.thumbUrl ?? photo.url,
       fit: BoxFit.cover,
       errorBuilder: (context, error, stackTrace) =>
-          const ColoredBox(color: Colors.black12),
+          const ColoredBox(color: Colors.black12), // photo-overlay
     ),
   );
 

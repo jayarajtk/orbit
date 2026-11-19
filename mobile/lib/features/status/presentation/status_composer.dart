@@ -77,8 +77,8 @@ class _StatusComposerScreenState extends ConsumerState<StatusComposerScreen> {
                     excludeFromSemantics: true,
                     errorBuilder: (context, error, stackTrace) =>
                         const ColoredBox(
-                          color: Colors.black12,
-                        ), // photo-overlay
+                          color: Colors.black12, // photo-overlay
+                        ),
                   ),
                 ),
               ),

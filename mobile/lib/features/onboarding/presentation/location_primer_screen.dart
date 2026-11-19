@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:orbit/app/router.dart';
+import 'package:orbit/app/theme.dart';
 import 'package:orbit/core/network/api_client.dart';
 import 'package:orbit/features/onboarding/presentation/onboarding_controller.dart';
 import 'package:orbit/features/onboarding/presentation/onboarding_scaffold.dart';
@@ -48,7 +49,7 @@ class _LocationPrimerScreenState extends ConsumerState<LocationPrimerScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.check, color: Color(0xFF4ADE80)),
+          Icon(Icons.check, color: context.tokens.online),
           const SizedBox(width: 12),
           Expanded(child: Text(text, style: theme.textTheme.bodyLarge)),
         ],

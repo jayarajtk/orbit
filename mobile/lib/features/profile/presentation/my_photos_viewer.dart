@@ -150,7 +150,11 @@ class _MyPhotosViewerState extends ConsumerState<MyPhotosViewer> {
   @override
   Widget build(BuildContext context) {
     final photos = ref.watch(myProfileProvider.select((p) => p?.photos ?? []));
-    if (photos.isEmpty) return const Scaffold(backgroundColor: Colors.black);
+    if (photos.isEmpty) {
+      return const Scaffold(
+        backgroundColor: Colors.black, // photo-overlay
+      );
+    }
     return PhotoViewer(
       key: ValueKey(_generation),
       busy: _busy,

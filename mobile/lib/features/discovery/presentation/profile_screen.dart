@@ -272,8 +272,9 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                               ),
                               decoration: BoxDecoration(
                                 color: i == _page
-                                    ? Colors.white
-                                    : Colors.white54,
+                                    ? Colors
+                                          .white // photo-overlay
+                                    : Colors.white54, // photo-overlay
                                 borderRadius: BorderRadius.circular(3),
                               ),
                             ),
