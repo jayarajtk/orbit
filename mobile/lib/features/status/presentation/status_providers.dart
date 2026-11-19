@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:orbit/core/clock.dart';
 import 'package:orbit/core/network/api_client.dart';
 import 'package:orbit/features/discovery/domain/profile.dart';
+import 'package:orbit/features/discovery/presentation/discovery_providers.dart';
 import 'package:orbit/features/media/data/media_capture.dart';
 import 'package:orbit/features/media/data/media_repository.dart';
 import 'package:orbit/features/media/domain/media.dart';
@@ -75,8 +76,9 @@ final FutureProviderFamily<List<StatusItem>, String> profileStatusesProvider =
       (ref, profileId) => ref.watch(statusRepositoryProvider).of(profileId),
     );
 
-/// Owners whose statuses the user has viewed this session, so rings turn
-/// grey at once.
+/// Owners whose every live status the user has now viewed, so rings turn
+/// grey at once. Only until the grid's next answer: the server's ring wins
+/// from then on, so a status posted since shows as unseen again.
 final seenStatusOwnersProvider =
     NotifierProvider<SeenStatusOwnersNotifier, Set<String>>(
       SeenStatusOwnersNotifier.new,
@@ -85,7 +87,15 @@ final seenStatusOwnersProvider =
 /// Holds the locally seen owners.
 class SeenStatusOwnersNotifier extends Notifier<Set<String>> {
   @override
-  Set<String> build() => const {};
+  Set<String> build() {
+    // A reload, not the grid's first load: that one answers nothing the
+    // user has viewed since.
+    ref.listen(allProfilesProvider, (previous, next) {
+      final reloaded = (previous?.hasValue ?? false) && !next.isLoading;
+      if (reloaded && next.hasValue && state.isNotEmpty) state = const {};
+    });
+    return const {};
+  }
 
   /// Marks [ownerId] as seen.
   void markSeen(String ownerId) => state = {...state, ownerId};

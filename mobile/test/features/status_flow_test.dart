@@ -11,6 +11,7 @@ import 'package:orbit/core/widgets/status_ring.dart';
 import 'package:orbit/features/discovery/data/fake_profile_repository.dart';
 import 'package:orbit/features/discovery/domain/discovery_filters.dart';
 import 'package:orbit/features/discovery/domain/profile.dart';
+import 'package:orbit/features/discovery/presentation/discovery_providers.dart';
 import 'package:orbit/features/media/data/media_capture.dart';
 import 'package:orbit/features/media/data/media_repository.dart';
 import 'package:orbit/features/media/domain/media.dart';
@@ -320,6 +321,26 @@ void main() {
     expect(profiles.nearbyCalls, fetches);
     expect(find.bySemanticsLabel(RegExp('has a status')), findsWidgets);
     semantics.dispose();
+  });
+
+  testWidgets('a grid reload with a newer status turns the ring unseen again', (
+    tester,
+  ) async {
+    final profiles = _CountingProfiles([
+      _member('p1', 'Sam', status: StatusRing.unseen),
+    ]);
+    await pumpOrbit(tester, profiles: profiles, overrides: _Api().overrides);
+    await onboard(tester);
+    final container = _container(tester)
+      ..read(seenStatusOwnersProvider.notifier).markSeen('p1');
+    await tester.pump();
+    expect(_ringIn(tester, _tile('p1')), StatusRing.seen);
+
+    // The server still says UNSEEN: Sam posted again since.
+    container.invalidate(allProfilesProvider);
+    await tester.pumpAndSettle();
+
+    expect(_ringIn(tester, _tile('p1')), StatusRing.unseen);
   });
 
   testWidgets('profile header shows the ring and tapping it opens the viewer', (

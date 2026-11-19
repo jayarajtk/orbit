@@ -270,6 +270,41 @@ void main() {
     expect(container.read(seenStatusOwnersProvider), {'p1'});
   });
 
+  testWidgets('viewing one of three statuses keeps the ring unseen', (
+    tester,
+  ) async {
+    await _open(tester, theirs: _threeStatuses);
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(StatusViewerScreen)),
+    );
+    expect(container.read(seenStatusOwnersProvider), isEmpty);
+
+    await _tapRight(tester);
+    await _tapRight(tester);
+    expect(container.read(seenStatusOwnersProvider), {'p1'});
+  });
+
+  testWidgets('statuses seen before count towards the ring', (tester) async {
+    await _open(
+      tester,
+      theirs: [
+        {..._item(1), 'seen': true},
+        {..._item(2), 'seen': true},
+        _item(3),
+      ],
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(StatusViewerScreen)),
+    );
+
+    await _tapRight(tester);
+    expect(container.read(seenStatusOwnersProvider), isEmpty);
+    await _tapRight(tester);
+    expect(container.read(seenStatusOwnersProvider), {'p1'});
+  });
+
   testWidgets('own status shows view count and opens Viewed by', (
     tester,
   ) async {

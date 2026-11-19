@@ -39,6 +39,7 @@ class _Slide {
     required this.createdAt,
     this.thumbUrl,
     this.caption,
+    this.seen = false,
     this.viewers = const [],
     this.viewCount = 0,
   });
@@ -49,6 +50,7 @@ class _Slide {
     thumbUrl: item.thumbUrl,
     caption: item.caption,
     createdAt: item.createdAt,
+    seen: item.seen,
   );
 
   factory _Slide.fromMine(MyStatus status) => _Slide(
@@ -66,6 +68,9 @@ class _Slide {
   final String? thumbUrl;
   final String? caption;
   final DateTime createdAt;
+
+  /// Whether the server says the user viewed it before this visit.
+  final bool seen;
   final List<StatusSeenBy> viewers;
   final int viewCount;
 }
@@ -295,7 +300,10 @@ class _StatusPlayerState extends ConsumerState<_StatusPlayer>
 
   void _markViewed(_Slide slide) {
     if (_isMine || !_viewed.add(slide.id)) return;
-    ref.read(seenStatusOwnersProvider.notifier).markSeen(widget.profileId);
+    // The ring turns grey only once nothing of this member's is left unseen.
+    if (widget.slides.every((s) => s.seen || _viewed.contains(s.id))) {
+      ref.read(seenStatusOwnersProvider.notifier).markSeen(widget.profileId);
+    }
     unawaited(_sendView(slide.id));
   }
 
