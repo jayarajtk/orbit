@@ -38,12 +38,15 @@ class ChatScreen extends ConsumerWidget {
         message: l10n.profileUnavailable,
       ),
     );
+    final cached = ref.watch(profilesByIdProvider)[profileId];
     return ref
         .watch(profileByIdProvider(profileId))
         .when(
-          loading: () => const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          ),
+          loading: () => cached != null && !blocked
+              ? _ChatView(profile: cached)
+              : const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                ),
           error: (_, _) => unavailable,
           data: (profile) => profile == null || blocked
               ? unavailable

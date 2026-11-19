@@ -5,6 +5,7 @@ import 'package:orbit/app/app.dart';
 import 'package:orbit/core/clock.dart';
 import 'package:orbit/features/chat/presentation/chat_controller.dart';
 import 'package:orbit/features/discovery/data/fake_profile_repository.dart';
+import 'package:orbit/features/discovery/domain/profile_repository.dart';
 import 'package:orbit/features/discovery/presentation/discovery_providers.dart';
 
 /// Fixed "now" for every widget test.
@@ -17,8 +18,11 @@ const testReplyAfter = Duration(milliseconds: 100);
 const testTypingFor = Duration(milliseconds: 100);
 
 /// Pumps the app on a phone-sized screen with a fixed clock, no profile
-/// latency and fast dummy replies.
-Future<void> pumpOrbit(WidgetTester tester) async {
+/// latency and fast dummy replies. [profiles] replaces the dummy repository.
+Future<void> pumpOrbit(
+  WidgetTester tester, {
+  ProfileRepository? profiles,
+}) async {
   tester.view.physicalSize = const Size(1170, 2532);
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
@@ -28,7 +32,7 @@ Future<void> pumpOrbit(WidgetTester tester) async {
       overrides: [
         clockProvider.overrideWithValue(() => testNow),
         profileRepositoryProvider.overrideWithValue(
-          FakeProfileRepository(latency: Duration.zero),
+          profiles ?? FakeProfileRepository(latency: Duration.zero),
         ),
         chatTimingProvider.overrideWithValue(
           const ChatTiming(

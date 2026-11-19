@@ -48,17 +48,18 @@ final profilesByIdProvider = Provider<Map<String, Profile>>((ref) {
   return {for (final profile in profiles) profile.id: profile};
 });
 
-/// One member: from the grid if loaded, otherwise fetched. Null when the
-/// member doesn't exist or can't be shown (for example after a block).
+/// One member, fetched on every visit so photos and details added since the
+/// grid loaded show up. Null when the member doesn't exist or can't be shown
+/// (for example after a block). Screens show the grid's copy from
+/// [profilesByIdProvider] while this loads.
+///
+/// It must not watch [profilesByIdProvider]: that provider builds a new map
+/// whenever the grid reloads, and re-evaluating it on the first watch
+/// invalidated this provider in the middle of a widget build.
 final FutureProviderFamily<Profile?, String> profileByIdProvider =
-    FutureProvider.family<Profile?, String>((
-      ref,
-      id,
-    ) async {
-      final cached = ref.watch(profilesByIdProvider)[id];
-      if (cached != null) return cached;
-      return ref.watch(profileRepositoryProvider).byId(id);
-    });
+    FutureProvider.autoDispose.family<Profile?, String>(
+      (ref, id) => ref.watch(profileRepositoryProvider).byId(id),
+    );
 
 /// The grid without blocked members (blocks hide people immediately, before
 /// the next reload).

@@ -1,9 +1,75 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:orbit/features/discovery/data/dummy_profiles.dart';
+import 'package:orbit/features/discovery/data/fake_profile_repository.dart';
+import 'package:orbit/features/discovery/domain/discovery_filters.dart';
+import 'package:orbit/features/discovery/domain/profile.dart';
+import 'package:orbit/l10n/app_localizations_en.dart';
 
 import '../helpers/pump_app.dart';
 
+/// Serves the grid a one-photo copy of Alex and the profile endpoint the
+/// two-photo one, as when a member adds a photo after the grid loaded.
+class _PhotoAddedRepository extends FakeProfileRepository {
+  _PhotoAddedRepository() : super(latency: Duration.zero);
+
+  static Profile _alex(int photoCount) => Profile(
+    id: dummyProfiles.first.id,
+    name: dummyProfiles.first.name,
+    age: dummyProfiles.first.age,
+    distanceKm: dummyProfiles.first.distanceKm,
+    online: true,
+    bio: dummyProfiles.first.bio,
+    lookingFor: dummyProfiles.first.lookingFor,
+    tags: dummyProfiles.first.tags,
+    photoCount: photoCount,
+    isNew: false,
+  );
+
+  @override
+  Future<List<Profile>> nearby(DiscoveryFilters filters) async => [_alex(1)];
+
+  @override
+  Future<Profile?> byId(String id) async => _alex(2);
+}
+
 void main() {
+  testWidgets('opening a profile reports no framework errors', (tester) async {
+    final errors = <FlutterErrorDetails>[];
+    final original = FlutterError.onError;
+    await pumpOrbit(tester);
+    await onboard(tester);
+    FlutterError.onError = errors.add;
+    try {
+      await tapText(tester, 'Alex 27');
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+      // The grid reloads while the profile is closed, so the cached profile
+      // is stale by the time it is opened again.
+      await tapText(tester, 'Online');
+      await tapText(tester, 'Alex 27');
+    } finally {
+      FlutterError.onError = original;
+    }
+
+    expect(find.text('Alex, 27'), findsOneWidget);
+    expect(errors.map((e) => e.exceptionAsString()), isEmpty);
+  });
+
+  testWidgets('profile shows photos added since the grid loaded', (
+    tester,
+  ) async {
+    await pumpOrbit(tester, profiles: _PhotoAddedRepository());
+    await onboard(tester);
+
+    await tapText(tester, 'Alex 27');
+
+    expect(
+      find.bySemanticsLabel(AppLocalizationsEn().photoOf(1, 2)),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('the Online chip hides offline members', (tester) async {
     await pumpOrbit(tester);
     await onboard(tester);
