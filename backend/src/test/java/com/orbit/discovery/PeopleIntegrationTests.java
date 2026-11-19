@@ -1,12 +1,21 @@
 package com.orbit.discovery;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.verify;
 
 import com.orbit.MutableClock;
 import com.orbit.TestcontainersConfiguration;
+import com.orbit.discovery.application.DiscoveryService;
 import com.orbit.discovery.domain.GeoPoint;
+import com.orbit.shared.CountingDataSource;
+import com.orbit.shared.PhotoUploads;
+import com.orbit.status.StatusApi;
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
@@ -25,10 +34,15 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /** Profiles, location, grid, blocks, reports and favorites end to end against PostGIS. */
-@Import({TestcontainersConfiguration.class, MutableClock.Config.class})
+@Import({
+  TestcontainersConfiguration.class,
+  MutableClock.Config.class,
+  CountingDataSource.Config.class
+})
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureRestTestClient
 class PeopleIntegrationTests {
@@ -41,13 +55,24 @@ class PeopleIntegrationTests {
   @Autowired RestTestClient client;
   @Autowired JdbcClient jdbc;
   @Autowired MutableClock clock;
+  @Autowired CountingDataSource dataSource;
+  @Autowired DiscoveryService discovery;
+  @MockitoSpyBean StatusApi statusApi;
 
   private final Map<String, String> ids = new HashMap<>();
 
   @BeforeEach
   void setUp() {
     for (String table :
-        List.of("favorite", "block", "report", "user_location", "profile", "account")) {
+        List.of(
+            "status_view",
+            "status",
+            "favorite",
+            "block",
+            "report",
+            "user_location",
+            "profile",
+            "account")) {
       jdbc.sql("DELETE FROM " + table).update();
     }
     clock.set(START);
@@ -132,6 +157,20 @@ class PeopleIntegrationTests {
     return grid(who, query).stream().map(p -> p.get("id")).toList();
   }
 
+  /** Posts a status for {@code who} from a fresh status photo; returns the status id. */
+  @SuppressWarnings("unchecked")
+  private String postStatus(String who) throws IOException, InterruptedException {
+    String mediaId = PhotoUploads.upload(client, who, "STATUS_PHOTO");
+    Map<String, Object> posted =
+        post(who, "/api/v1/me/statuses", "{\"mediaId\":\"%s\"}".formatted(mediaId))
+            .expectStatus()
+            .isCreated()
+            .expectBody(Map.class)
+            .returnResult()
+            .getResponseBody();
+    return (String) posted.get("id");
+  }
+
   private static String capitalize(String s) {
     return Character.toUpperCase(s.charAt(0)) + s.substring(1);
   }
@@ -207,6 +246,78 @@ class PeopleIntegrationTests {
       assertThat(people.get(0)).doesNotContainKeys("birthDate", "meters", "lat", "lng");
       assertThat(people.get(0).get("online")).isEqualTo(true);
       assertThat(people.get(0).get("isNew")).isEqualTo(true);
+    }
+
+    @Test
+    void gridShowsUnseenThenSeenStatus() throws Exception {
+      threeNeighbours();
+      String statusId = postStatus("bob");
+
+      assertThat(statusOf(grid("alice", "")))
+          .containsEntry("bob", "UNSEEN")
+          .containsEntry("carol", "NONE");
+
+      put("alice", "/api/v1/statuses/" + statusId + "/view", "").expectStatus().isNoContent();
+
+      assertThat(statusOf(grid("alice", "")))
+          .containsEntry("bob", "SEEN")
+          .containsEntry("carol", "NONE");
+    }
+
+    @Test
+    void gridStatusAddsOneQueryPerPage() throws Exception {
+      threeNeighbours();
+      clearInvocations(statusApi);
+      int without = dataSource.count(this::aliceGridPage).statements();
+      verify(statusApi).statesFor(any(), anyCollection());
+
+      postStatus("bob");
+      postStatus("carol");
+      clearInvocations(statusApi);
+      int with = dataSource.count(this::aliceGridPage).statements();
+
+      // The status lookup is one query for the whole page, whether or not anyone has a status.
+      verify(statusApi).statesFor(any(), anyCollection());
+      assertThat(with).isEqualTo(without);
+    }
+
+    @Test
+    void profileAndFavoritesShowTheStatusState() throws Exception {
+      threeNeighbours();
+      postStatus("bob");
+      post("alice", "/api/v1/favorites/" + ids.get("bob"), "").expectStatus().isNoContent();
+
+      get("alice", "/api/v1/profiles/" + ids.get("bob"))
+          .expectStatus()
+          .isOk()
+          .expectBody()
+          .jsonPath("$.status")
+          .isEqualTo("UNSEEN");
+      get("alice", "/api/v1/profiles/" + ids.get("carol"))
+          .expectStatus()
+          .isOk()
+          .expectBody()
+          .jsonPath("$.status")
+          .isEqualTo("NONE");
+      get("alice", "/api/v1/favorites")
+          .expectStatus()
+          .isOk()
+          .expectBody()
+          .jsonPath("$[0].status")
+          .isEqualTo("UNSEEN");
+    }
+
+    /** One grid page through the service, on this thread, so its statements are counted. */
+    private DiscoveryService.GridPage aliceGridPage() {
+      return discovery.grid(
+          "alice", new DiscoveryService.GridQuery(18, 99, false, List.of(), null, 0, 60));
+    }
+
+    private Map<String, Object> statusOf(List<Map<String, Object>> people) {
+      Map<String, Object> byName = new HashMap<>();
+      people.forEach(
+          p -> byName.put(((String) p.get("displayName")).toLowerCase(), p.get("status")));
+      return byName;
     }
 
     @Test

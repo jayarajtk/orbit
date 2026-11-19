@@ -11,6 +11,8 @@ import com.orbit.identity.IdentityApi;
 import com.orbit.media.MediaApi;
 import com.orbit.media.MediaApi.Links;
 import com.orbit.profile.ProfileApi;
+import com.orbit.status.StatusApi;
+import com.orbit.status.StatusApi.StatusState;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -47,6 +49,7 @@ public class DiscoveryService {
   private final IdentityApi identity;
   private final ProfileApi profiles;
   private final MediaApi media;
+  private final StatusApi statuses;
   private final Clock clock;
 
   public DiscoveryService(
@@ -54,12 +57,14 @@ public class DiscoveryService {
       IdentityApi identity,
       ProfileApi profiles,
       MediaApi media,
+      StatusApi statuses,
       Clock clock) {
     this.store = store;
     this.snapper = new LocationSnapper();
     this.identity = identity;
     this.profiles = profiles;
     this.media = media;
+    this.statuses = statuses;
     this.clock = clock;
   }
 
@@ -113,7 +118,7 @@ public class DiscoveryService {
             query.maxDistanceKm() == null ? null : query.maxDistanceKm() * 1_000.0);
     // Fetch one extra row to know whether another page exists.
     List<PersonView> rows =
-        views(store.nearby(me, filter, limit + 1, query.offset()), now, today, GRID_PHOTOS);
+        views(me, store.nearby(me, filter, limit + 1, query.offset()), now, today, GRID_PHOTOS);
     boolean more = rows.size() > limit;
     return new GridPage(more ? rows.subList(0, limit) : rows, more ? query.offset() + limit : null);
   }
@@ -127,7 +132,8 @@ public class DiscoveryService {
   public PersonView person(String callerSubject, UUID id) {
     UUID me = identity.require(callerSubject).id();
     PersonRow row = store.person(me, id).orElseThrow(PersonNotFoundException::new);
-    return views(List.of(row), clock.instant(), LocalDate.now(clock), Integer.MAX_VALUE).getFirst();
+    return views(me, List.of(row), clock.instant(), LocalDate.now(clock), Integer.MAX_VALUE)
+        .getFirst();
   }
 
   @Transactional(readOnly = true)
@@ -135,7 +141,7 @@ public class DiscoveryService {
     UUID me = identity.require(callerSubject).id();
     Instant now = clock.instant();
     LocalDate today = LocalDate.now(clock);
-    return views(store.favorites(me), now, today, GRID_PHOTOS);
+    return views(me, store.favorites(me), now, today, GRID_PHOTOS);
   }
 
   /**
@@ -157,12 +163,23 @@ public class DiscoveryService {
     store.removeFavorite(identity.require(callerSubject).id(), id);
   }
 
-  /** Views for {@code rows}, fetching links for all their photos in one query. */
+  /**
+   * Views for {@code rows}, fetching links for all their photos in one query and their status-ring
+   * states in another. The rows are already visible to {@code me}, which is what {@link
+   * StatusApi#statesFor} requires; {@code me} is never asked about, since a member's own views are
+   * not recorded.
+   */
   private List<PersonView> views(
-      List<PersonRow> rows, Instant now, LocalDate today, int maxPhotos) {
+      UUID me, List<PersonRow> rows, Instant now, LocalDate today, int maxPhotos) {
     Map<UUID, Links> links =
         media.links(rows.stream().flatMap(r -> r.photoIds().stream().limit(maxPhotos)).toList());
-    return rows.stream().map(r -> PersonView.of(r, now, today, links, maxPhotos)).toList();
+    List<UUID> owners = rows.stream().map(PersonRow::id).filter(id -> !id.equals(me)).toList();
+    Map<UUID, StatusState> states = owners.isEmpty() ? Map.of() : statuses.statesFor(me, owners);
+    return rows.stream()
+        .map(r ->
+            PersonView.of(
+                r, now, today, links, states.getOrDefault(r.id(), StatusState.NONE), maxPhotos))
+        .toList();
   }
 
   /**

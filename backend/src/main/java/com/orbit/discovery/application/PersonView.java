@@ -3,6 +3,7 @@ package com.orbit.discovery.application;
 import com.orbit.discovery.domain.DistanceBucket;
 import com.orbit.discovery.infrastructure.DiscoveryStore.PersonRow;
 import com.orbit.media.MediaApi.Links;
+import com.orbit.status.StatusApi.StatusState;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -17,6 +18,7 @@ import java.util.UUID;
  * @param age null when the member hides it
  * @param distanceKm bucket from {@link DistanceBucket}, or null when hidden or unknown
  * @param photoCount public photos the member has
+ * @param status status-ring state: {@code NONE}, {@code UNSEEN} or {@code SEEN}
  * @param photos with short-lived links: the first one in the grid, all of them on a profile
  */
 public record PersonView(
@@ -28,6 +30,7 @@ public record PersonView(
     boolean isNew,
     boolean favorite,
     int photoCount,
+    String status,
     String bio,
     String pronouns,
     Integer heightCm,
@@ -50,7 +53,12 @@ public record PersonView(
    * without a link are skipped).
    */
   static PersonView of(
-      PersonRow row, Instant now, LocalDate today, Map<UUID, Links> links, int maxPhotos) {
+      PersonRow row,
+      Instant now,
+      LocalDate today,
+      Map<UUID, Links> links,
+      StatusState status,
+      int maxPhotos) {
     Integer distance =
         row.showDistance() && row.meters() != null ? DistanceBucket.of(row.meters()) : null;
     return new PersonView(
@@ -62,6 +70,7 @@ public record PersonView(
         row.joinedAt().isAfter(now.minus(NEW_WINDOW)),
         row.favorite(),
         row.photoIds().size(),
+        status.name(),
         row.bio(),
         row.pronouns(),
         row.heightCm(),

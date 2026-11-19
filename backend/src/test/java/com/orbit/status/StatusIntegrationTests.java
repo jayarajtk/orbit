@@ -19,19 +19,14 @@ import com.orbit.media.application.MediaScanner;
 import com.orbit.media.application.ObjectStorage;
 import com.orbit.shared.CountingDataSource;
 import com.orbit.shared.CountingDataSource.Counted;
+import com.orbit.shared.PhotoUploads;
 import com.orbit.shared.config.EventResubmissionJob;
 import com.orbit.status.StatusApi.StatusExpired;
 import com.orbit.status.StatusApi.StatusState;
 import com.orbit.status.application.StatusReaper;
 import com.orbit.status.infrastructure.StatusStore;
 import io.micrometer.core.instrument.MeterRegistry;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -47,7 +42,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import javax.imageio.ImageIO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -108,7 +102,6 @@ class StatusIntegrationTests {
   @Autowired ExpiryRecorder expiries;
   @Autowired AtomicReference<MediaScanner.Verdict> verdict;
 
-  private final HttpClient http = HttpClient.newHttpClient();
   private final Map<String, String> ids = new HashMap<>();
 
   /** A scanner whose verdict each test chooses. */
@@ -223,34 +216,7 @@ class StatusIntegrationTests {
 
   /** Uploads and completes a small photo for {@code purpose}; returns the media id. */
   private String photo(String who, String purpose) throws IOException, InterruptedException {
-    byte[] bytes = jpeg();
-    JsonNode ticket =
-        body(
-            post(
-                    who,
-                    "/api/v1/media/uploads",
-                    "{\"purpose\":\"%s\",\"contentType\":\"image/jpeg\",\"sizeBytes\":%d}"
-                        .formatted(purpose, bytes.length))
-                .expectStatus()
-                .isCreated());
-    HttpResponse<String> stored =
-        http.send(
-            HttpRequest.newBuilder(URI.create(ticket.get("uploadUrl").asString()))
-                .header("Content-Type", "image/jpeg")
-                .PUT(HttpRequest.BodyPublishers.ofByteArray(bytes))
-                .build(),
-            HttpResponse.BodyHandlers.ofString());
-    assertThat(stored.statusCode()).isEqualTo(200);
-    String id = ticket.get("id").asString();
-    post(who, "/api/v1/media/uploads/" + id + "/complete", "{}").expectStatus().isOk();
-    return id;
-  }
-
-  private static byte[] jpeg() throws IOException {
-    BufferedImage image = new BufferedImage(64, 48, BufferedImage.TYPE_INT_RGB);
-    ByteArrayOutputStream out = new ByteArrayOutputStream();
-    ImageIO.write(image, "jpeg", out);
-    return out.toByteArray();
+    return PhotoUploads.upload(client, who, purpose);
   }
 
   private RestTestClient.ResponseSpec postStatus(String who, String mediaId, String caption) {
