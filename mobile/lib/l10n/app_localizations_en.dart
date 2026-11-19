@@ -429,10 +429,22 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get statusSent => 'Sent';
+  String get tickSent => 'Sent';
 
   @override
-  String get statusRead => 'Read';
+  String get tickDelivered => 'Delivered';
+
+  @override
+  String get tickRead => 'Read';
+
+  @override
+  String get dayToday => 'Today';
+
+  @override
+  String get dayYesterday => 'Yesterday';
+
+  @override
+  String get typingStatus => 'typing…';
 
   @override
   String get statusSending => 'Sending…';

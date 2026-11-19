@@ -43,3 +43,21 @@ String messageTime(BuildContext context, DateTime time) {
   final locale = Localizations.localeOf(context).toLanguageTag();
   return DateFormat.jm(locale).format(time.toLocal());
 }
+
+/// Heading for a day of messages: "Today", "Yesterday", the weekday within
+/// the last six days, otherwise the date.
+///
+/// [localDay] is local midnight; [now] may be UTC.
+String dayLabel(BuildContext context, DateTime localDay, DateTime now) {
+  final l10n = AppLocalizations.of(context);
+  final locale = Localizations.localeOf(context).toLanguageTag();
+  final localNow = now.toLocal();
+  // UTC dates keep day arithmetic exact across daylight-saving changes.
+  final days = DateTime.utc(localNow.year, localNow.month, localNow.day)
+      .difference(DateTime.utc(localDay.year, localDay.month, localDay.day))
+      .inDays;
+  if (days == 0) return l10n.dayToday;
+  if (days == 1) return l10n.dayYesterday;
+  if (days > 1 && days < 7) return DateFormat.EEEE(locale).format(localDay);
+  return DateFormat.yMMMd(locale).format(localDay);
+}

@@ -48,7 +48,6 @@ Future<void> _show(WidgetTester tester, Message message) async {
             profileId: 'bob',
             message: message,
             otherName: 'Bob',
-            showStatus: false,
             showReadReceipt: true,
           ),
         ),

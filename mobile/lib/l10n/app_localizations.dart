@@ -850,17 +850,41 @@ abstract class AppLocalizations {
   /// **'{name} is typing…'**
   String typing(String name);
 
-  /// No description provided for @statusSent.
+  /// No description provided for @tickSent.
   ///
   /// In en, this message translates to:
   /// **'Sent'**
-  String get statusSent;
+  String get tickSent;
 
-  /// No description provided for @statusRead.
+  /// No description provided for @tickDelivered.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivered'**
+  String get tickDelivered;
+
+  /// No description provided for @tickRead.
   ///
   /// In en, this message translates to:
   /// **'Read'**
-  String get statusRead;
+  String get tickRead;
+
+  /// No description provided for @dayToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get dayToday;
+
+  /// No description provided for @dayYesterday.
+  ///
+  /// In en, this message translates to:
+  /// **'Yesterday'**
+  String get dayYesterday;
+
+  /// No description provided for @typingStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'typing…'**
+  String get typingStatus;
 
   /// No description provided for @statusSending.
   ///

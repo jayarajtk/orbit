@@ -24,9 +24,10 @@ const testTypingFor = Duration(milliseconds: 100);
 /// Pumps the app on a phone-sized screen with a fixed clock, no profile
 /// latency and fast dummy replies. [profiles] replaces the dummy repository;
 /// [overrides] are added after the defaults. [imageCache] records cache calls
-/// instead of touching the disk.
+/// instead of touching the disk. [now] replaces the fixed clock.
 Future<void> pumpOrbit(
   WidgetTester tester, {
+  DateTime? now,
   ProfileRepository? profiles,
   List<Override> overrides = const [],
   FakeImageCache? imageCache,
@@ -38,7 +39,7 @@ Future<void> pumpOrbit(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        clockProvider.overrideWithValue(() => testNow),
+        clockProvider.overrideWithValue(() => now ?? testNow),
         profileRepositoryProvider.overrideWithValue(
           profiles ?? FakeProfileRepository(latency: Duration.zero),
         ),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:orbit/app/theme.dart';
 import 'package:orbit/features/chat/domain/message.dart';
 import 'package:orbit/features/chat/presentation/message_media.dart';
+import 'package:orbit/features/chat/presentation/message_preview.dart';
 import 'package:orbit/l10n/app_localizations.dart';
 
 /// One message in the chat thread.
@@ -10,8 +12,9 @@ class MessageBubble extends StatelessWidget {
     required this.profileId,
     required this.message,
     required this.otherName,
-    required this.showStatus,
     required this.showReadReceipt,
+    this.groupedWithNext = false,
+    this.groupedWithPrevious = false,
     this.waveCount = 1,
     this.onLongPress,
     this.onTap,
@@ -27,11 +30,16 @@ class MessageBubble extends StatelessWidget {
   /// The other member's name, for incoming cards.
   final String otherName;
 
-  /// Whether to show Sent/Read under this (the newest own) message.
-  final bool showStatus;
-
   /// Whether read receipts are enabled.
   final bool showReadReceipt;
+
+  /// Whether the next bubble is from the same sender and close in time:
+  /// tighter spacing and no tail.
+  final bool groupedWithNext;
+
+  /// Whether the previous bubble is from the same sender and close in time:
+  /// tighter spacing.
+  final bool groupedWithPrevious;
 
   /// How many waves this bubble stands for, when [message] is the newest
   /// of a run of waves.
@@ -46,17 +54,17 @@ class MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final scheme = Theme.of(context).colorScheme;
+    final tokens = context.tokens;
     final mine = message.fromMe;
-    final background = mine ? scheme.primary : scheme.surfaceContainer;
-    final foreground = mine ? scheme.onPrimary : scheme.onSurface;
+    // Own bubbles are a light wash of the accent so accent ticks stay visible.
+    final background = mine
+        ? Color.alphaBlend(
+            tokens.accent.withValues(alpha: 0.16),
+            tokens.surface,
+          )
+        : tokens.surface;
+    final foreground = tokens.text;
     final failed = message.status == DeliveryStatus.failed;
-    final status = switch (message.status) {
-      DeliveryStatus.pending => l10n.statusSending,
-      DeliveryStatus.failed => l10n.statusFailed,
-      DeliveryStatus.read when showReadReceipt => l10n.statusRead,
-      DeliveryStatus.read || DeliveryStatus.sent => l10n.statusSent,
-    };
 
     final Widget content;
     if (message.unsent) {
@@ -102,8 +110,14 @@ class MessageBubble extends StatelessWidget {
       };
     }
 
+    const tail = Radius.circular(6);
+    const round = Radius.circular(18);
+    final tailed = !groupedWithNext;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: EdgeInsets.only(
+        top: groupedWithPrevious ? 1 : 3,
+        bottom: groupedWithNext ? 1 : 3,
+      ),
       child: Column(
         crossAxisAlignment: mine
             ? CrossAxisAlignment.end
@@ -116,8 +130,8 @@ class MessageBubble extends StatelessWidget {
               borderRadius: BorderRadiusDirectional.only(
                 topStart: const Radius.circular(18),
                 topEnd: const Radius.circular(18),
-                bottomStart: Radius.circular(mine ? 18 : 6),
-                bottomEnd: Radius.circular(mine ? 6 : 18),
+                bottomStart: !mine && tailed ? tail : round,
+                bottomEnd: mine && tailed ? tail : round,
               ),
               child: InkWell(
                 onLongPress: onLongPress,
@@ -128,21 +142,89 @@ class MessageBubble extends StatelessWidget {
                     horizontal: 14,
                     vertical: 10,
                   ),
-                  child: content,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      content,
+                      const SizedBox(height: 2),
+                      _TimeAndTicks(
+                        message: message,
+                        showReadReceipt: showReadReceipt,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-          if ((showStatus || failed) && !message.unsent)
+          if (failed && !message.unsent)
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Text(
-                status,
+                l10n.statusFailed,
                 style: Theme.of(context).textTheme.labelSmall,
               ),
             ),
         ],
       ),
+    );
+  }
+}
+
+/// The local time and, on own messages, the delivery ticks.
+class _TimeAndTicks extends StatelessWidget {
+  const _TimeAndTicks({required this.message, required this.showReadReceipt});
+
+  final Message message;
+  final bool showReadReceipt;
+
+  static const _tickSize = 14.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final tokens = context.tokens;
+    final muted = tokens.textMuted;
+    final tick = message.fromMe && !message.unsent
+        ? switch (message.status) {
+            DeliveryStatus.pending => Icon(
+              Icons.schedule,
+              size: _tickSize,
+              color: muted,
+              semanticLabel: l10n.statusSending,
+            ),
+            DeliveryStatus.sent => Icon(
+              Icons.done,
+              size: _tickSize,
+              color: muted,
+              semanticLabel: l10n.tickSent,
+            ),
+            DeliveryStatus.read when showReadReceipt => Icon(
+              Icons.done_all,
+              size: _tickSize,
+              color: tokens.accent,
+              semanticLabel: l10n.tickRead,
+            ),
+            // With receipts off, a read message looks merely delivered.
+            DeliveryStatus.read => Icon(
+              Icons.done_all,
+              size: _tickSize,
+              color: muted,
+              semanticLabel: l10n.tickDelivered,
+            ),
+            DeliveryStatus.failed => null,
+          }
+        : null;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          messageTime(context, message.sentAt),
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(color: muted),
+        ),
+        if (tick != null) ...[const SizedBox(width: 4), tick],
+      ],
     );
   }
 }

@@ -12,6 +12,7 @@ import 'package:orbit/features/chat/domain/message.dart';
 import 'package:orbit/features/chat/presentation/chat_controller.dart';
 import 'package:orbit/features/chat/presentation/chat_items.dart';
 import 'package:orbit/features/chat/presentation/message_bubble.dart';
+import 'package:orbit/features/chat/presentation/message_preview.dart';
 import 'package:orbit/features/discovery/domain/profile.dart';
 import 'package:orbit/features/discovery/presentation/discovery_providers.dart';
 import 'package:orbit/features/media/data/media_capture.dart';
@@ -54,6 +55,38 @@ class ChatScreen extends ConsumerWidget {
               ? unavailable
               : _ChatView(profile: profile),
         );
+  }
+}
+
+/// The day heading between messages.
+class _DaySeparator extends StatelessWidget {
+  const _DaySeparator({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.tokens;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Center(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: tokens.surfaceRaised,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            child: Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.labelSmall?.copyWith(color: tokens.text),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -304,33 +337,36 @@ class _ChatViewState extends ConsumerState<_ChatView> {
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
-        title: Row(
-          children: [
-            ProfileAvatar(
-              name: profile.name,
-              seed: profile.id,
-              photoUrl: profile.thumbUrl,
-              mediaId: profile.thumbMediaId,
-              ownerId: profile.id,
-              size: 36,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(profile.name, overflow: TextOverflow.ellipsis),
-                  if (profile.online)
-                    Text(
-                      l10n.onlineNow,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: context.tokens.online,
-                      ),
-                    ),
-                ],
+        title: InkWell(
+          onTap: () => unawaited(context.push(AppRoutes.profile(_id))),
+          child: Row(
+            children: [
+              ProfileAvatar(
+                name: profile.name,
+                seed: profile.id,
+                photoUrl: profile.thumbUrl,
+                mediaId: profile.thumbMediaId,
+                ownerId: profile.id,
+                size: 36,
               ),
-            ),
-          ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(profile.name, overflow: TextOverflow.ellipsis),
+                    if (typing || profile.online)
+                      Text(
+                        typing ? l10n.typingStatus : l10n.onlineNow,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: context.tokens.online,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           PopupMenuButton<_ChatMenu>(
@@ -373,13 +409,17 @@ class _ChatViewState extends ConsumerState<_ChatView> {
                   }
                   final position = index - (typing ? 1 : 0);
                   final item = items[items.length - 1 - position];
+                  if (item is DaySeparatorItem) {
+                    return _DaySeparator(
+                      label: dayLabel(
+                        context,
+                        item.localDay,
+                        ref.read(clockProvider)(),
+                      ),
+                    );
+                  }
                   final message = _bubbleMessage(item);
                   if (message == null) return const SizedBox.shrink();
-                  final isNewestMine =
-                      message.fromMe &&
-                      !items
-                          .skip(items.length - position)
-                          .any((i) => _bubbleMessage(i)?.fromMe ?? false);
                   return MessageBubble(
                     key: ValueKey(
                       item is WaveRunItem ? item.waves.first.id : message.id,
@@ -388,8 +428,11 @@ class _ChatViewState extends ConsumerState<_ChatView> {
                     profileId: _id,
                     message: message,
                     otherName: profile.name,
-                    showStatus: isNewestMine,
                     showReadReceipt: showReceipts,
+                    groupedWithNext:
+                        item is MessageItem && item.groupedWithNext,
+                    groupedWithPrevious:
+                        item is MessageItem && item.groupedWithPrevious,
                     onLongPress: message.fromMe && !message.unsent
                         ? () => _unsend(message)
                         : null,
