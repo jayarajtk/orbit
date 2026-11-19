@@ -8,6 +8,7 @@ import 'package:orbit/core/clock.dart';
 import 'package:orbit/core/labels.dart';
 import 'package:orbit/core/widgets/empty_state.dart';
 import 'package:orbit/core/widgets/glass_icon_button.dart';
+import 'package:orbit/core/widgets/media_image.dart';
 import 'package:orbit/core/widgets/profile_avatar.dart';
 import 'package:orbit/features/chat/presentation/chat_controller.dart';
 import 'package:orbit/features/chat/presentation/wave_limit.dart';
@@ -187,6 +188,11 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                       photoUrl: index < _profile.photos.length
                           ? _profile.photos[index].url
                           : null,
+                      mediaId: index < _profile.photos.length
+                          ? _profile.photos[index].id
+                          : null,
+                      ownerId: _profile.id,
+                      variant: MediaVariant.full,
                       size: double.infinity,
                       square: true,
                     ),

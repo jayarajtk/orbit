@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:orbit/core/network/api_client.dart';
+import 'package:orbit/core/widgets/media_image.dart';
+import 'package:orbit/core/widgets/photo_viewer.dart';
 import 'package:orbit/features/chat/domain/message.dart';
 import 'package:orbit/features/chat/presentation/chat_controller.dart';
 import 'package:orbit/features/media/domain/media.dart';
@@ -89,21 +91,38 @@ class _Photo extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final links = ref.watch(messageMediaProvider((profileId, message.id)));
+    final mediaId = message.mediaId!;
+    final heroTag = 'chat-photo:${message.id}';
     return switch (links) {
       AsyncData(:final value) => Semantics(
         button: true,
         label: l10n.photoMessage,
         child: GestureDetector(
-          onTap: () => openPhoto(context, value.url),
+          onTap: () => openPhotos(
+            context,
+            [
+              PhotoViewerItem(
+                mediaId: mediaId,
+                url: value.url,
+                thumbUrl: value.thumbUrl,
+              ),
+            ],
+            heroTag: heroTag,
+          ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: AspectRatio(
               aspectRatio: value.aspectRatio.clamp(0.6, 1.8),
-              child: Image.network(
-                value.thumbUrl ?? value.url,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    const Icon(Icons.broken_image_outlined),
+              child: Hero(
+                tag: heroTag,
+                child: MediaImage(
+                  mediaId: mediaId,
+                  url: value.thumbUrl ?? value.url,
+                  variant: value.thumbUrl == null
+                      ? MediaVariant.full
+                      : MediaVariant.thumb,
+                  ownerId: profileId,
+                ),
               ),
             ),
           ),
@@ -156,7 +175,15 @@ class _ViewOnce extends ConsumerWidget {
           final links = await ref
               .read(chatProvider.notifier)
               .mediaLinks(profileId, message.id);
-          if (context.mounted) await openPhoto(context, links.url);
+          if (context.mounted) {
+            await openPhotos(context, [
+              PhotoViewerItem(
+                mediaId: message.mediaId!,
+                url: links.url,
+                cache: false,
+              ),
+            ]);
+          }
         } on ApiException {
           messenger.showSnackBar(
             SnackBar(content: Text(l10n.mediaUnavailable)),
@@ -317,53 +344,6 @@ class _Line extends StatelessWidget {
           child: Text(text, style: TextStyle(color: color)),
         ),
       ],
-    );
-  }
-}
-
-/// Shows [url] full screen with pinch to zoom.
-Future<void> openPhoto(BuildContext context, String url) {
-  return Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      fullscreenDialog: true,
-      builder: (context) => PhotoViewer(url: url),
-    ),
-  );
-}
-
-/// A full-screen photo.
-class PhotoViewer extends StatelessWidget {
-  /// Creates the viewer.
-  const PhotoViewer({required this.url, super.key});
-
-  /// Image to show.
-  final String url;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        leading: IconButton(
-          tooltip: l10n.closeTooltip,
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
-      body: Center(
-        child: InteractiveViewer(
-          child: Image.network(
-            url,
-            errorBuilder: (context, error, stackTrace) => Text(
-              l10n.mediaUnavailable,
-              style: const TextStyle(color: Colors.white),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

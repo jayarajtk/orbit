@@ -39,6 +39,8 @@ class FavoritesScreen extends ConsumerWidget {
                     seed: p.id,
                     hasPhoto: p.hasPhoto,
                     photoUrl: p.thumbUrl,
+                    mediaId: p.thumbMediaId,
+                    ownerId: p.id,
                   ),
                   title: Text(l10n.nameWithAge(p.name, p.age)),
                   subtitle: Text(l10n.distance(p.distanceKm)),

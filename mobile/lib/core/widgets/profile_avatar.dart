@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:orbit/core/widgets/media_image.dart';
 
 /// A member's photo when [photoUrl] is set; otherwise (and while it loads or
 /// if it fails) their initial on a colour picked from their id, or a person
@@ -12,6 +13,9 @@ class ProfileAvatar extends StatelessWidget {
     this.size = 48,
     this.square = false,
     this.photoUrl,
+    this.mediaId,
+    this.ownerId,
+    this.variant = MediaVariant.thumb,
     super.key,
   });
 
@@ -44,10 +48,21 @@ class ProfileAvatar extends StatelessWidget {
   /// Image to show; short-lived, so callers pass the latest link.
   final String? photoUrl;
 
+  /// Media id of [photoUrl]; the cache key. Without it the image is not
+  /// cached and downloads again on every view.
+  final String? mediaId;
+
+  /// Member whose cached image is evicted when they are blocked.
+  final String? ownerId;
+
+  /// Which rendition [photoUrl] points to; part of the cache key.
+  final MediaVariant variant;
+
   @override
   Widget build(BuildContext context) {
     final placeholder = _placeholder(context);
     final url = photoUrl;
+    final id = mediaId;
     if (url == null) return placeholder;
     final radius = square
         ? BorderRadius.circular(12)
@@ -58,14 +73,25 @@ class ProfileAvatar extends StatelessWidget {
         height: size,
         child: ClipRRect(
           borderRadius: radius,
-          child: Image.network(
-            url,
-            fit: BoxFit.cover,
-            gaplessPlayback: true,
-            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) =>
-                frame == null && !wasSynchronouslyLoaded ? placeholder : child,
-            errorBuilder: (context, error, stackTrace) => placeholder,
-          ),
+          child: id == null
+              ? Image.network(
+                  url,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  frameBuilder:
+                      (context, child, frame, wasSynchronouslyLoaded) =>
+                          frame == null && !wasSynchronouslyLoaded
+                          ? placeholder
+                          : child,
+                  errorBuilder: (context, error, stackTrace) => placeholder,
+                )
+              : MediaImage(
+                  mediaId: id,
+                  url: url,
+                  variant: variant,
+                  ownerId: ownerId,
+                  placeholder: placeholder,
+                ),
         ),
       ),
     );

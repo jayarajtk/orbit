@@ -4,10 +4,13 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbit/app/app.dart';
 import 'package:orbit/core/clock.dart';
+import 'package:orbit/core/widgets/media_image.dart';
 import 'package:orbit/features/chat/presentation/chat_controller.dart';
 import 'package:orbit/features/discovery/data/fake_profile_repository.dart';
 import 'package:orbit/features/discovery/domain/profile_repository.dart';
 import 'package:orbit/features/discovery/presentation/discovery_providers.dart';
+
+import 'fake_image_cache.dart';
 
 /// Fixed "now" for every widget test.
 final testNow = DateTime(2026, 11, 9, 12);
@@ -20,11 +23,13 @@ const testTypingFor = Duration(milliseconds: 100);
 
 /// Pumps the app on a phone-sized screen with a fixed clock, no profile
 /// latency and fast dummy replies. [profiles] replaces the dummy repository;
-/// [overrides] are added after the defaults.
+/// [overrides] are added after the defaults. [imageCache] records cache calls
+/// instead of touching the disk.
 Future<void> pumpOrbit(
   WidgetTester tester, {
   ProfileRepository? profiles,
   List<Override> overrides = const [],
+  FakeImageCache? imageCache,
 }) async {
   tester.view.physicalSize = const Size(1170, 2532);
   tester.view.devicePixelRatio = 3;
@@ -42,6 +47,9 @@ Future<void> pumpOrbit(
             replyAfter: testReplyAfter,
             typingFor: testTypingFor,
           ),
+        ),
+        orbitImageCacheProvider.overrideWithValue(
+          imageCache ?? FakeImageCache(),
         ),
         ...overrides,
       ],

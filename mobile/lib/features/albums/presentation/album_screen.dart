@@ -3,9 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbit/core/network/api_client.dart';
+import 'package:orbit/core/widgets/media_image.dart';
+import 'package:orbit/core/widgets/photo_viewer.dart';
 import 'package:orbit/features/albums/data/album_repository.dart';
 import 'package:orbit/features/albums/presentation/albums_controller.dart';
-import 'package:orbit/features/chat/presentation/message_media.dart';
 import 'package:orbit/features/media/data/media_capture.dart';
 import 'package:orbit/l10n/app_localizations.dart';
 
@@ -107,17 +108,36 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
               mainAxisSpacing: 4,
               crossAxisSpacing: 4,
               children: [
-                for (final photo in album.photos)
+                for (final (index, photo) in album.photos.indexed)
                   Semantics(
                     button: true,
                     label: l10n.photoMessage,
                     child: GestureDetector(
-                      onTap: () => openPhoto(context, photo.links.url),
-                      child: Image.network(
-                        photo.links.thumbUrl ?? photo.links.url,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const Icon(Icons.broken_image_outlined),
+                      onTap: () => openPhotos(
+                        context,
+                        [
+                          for (final p in album.photos)
+                            PhotoViewerItem(
+                              mediaId: p.id,
+                              url: p.links.url,
+                              thumbUrl: p.links.thumbUrl,
+                              cache: !album.viewOnce,
+                            ),
+                        ],
+                        initialIndex: index,
+                        heroTag: 'album-photo:${photo.id}',
+                      ),
+                      child: Hero(
+                        tag: 'album-photo:${photo.id}',
+                        child: MediaImage(
+                          mediaId: photo.id,
+                          url: photo.links.thumbUrl ?? photo.links.url,
+                          variant: photo.links.thumbUrl == null
+                              ? MediaVariant.full
+                              : MediaVariant.thumb,
+                          cache: !album.viewOnce,
+                          ownerId: album.ownerId,
+                        ),
                       ),
                     ),
                   ),

@@ -310,6 +310,8 @@ class _ChatViewState extends ConsumerState<_ChatView> {
               seed: profile.id,
               hasPhoto: profile.hasPhoto,
               photoUrl: profile.thumbUrl,
+              mediaId: profile.thumbMediaId,
+              ownerId: profile.id,
               size: 36,
             ),
             const SizedBox(width: 10),

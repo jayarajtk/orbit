@@ -159,6 +159,8 @@ class _ConversationTile extends ConsumerWidget {
             seed: conversation.profileId,
             hasPhoto: profile?.hasPhoto ?? true,
             photoUrl: profile?.thumbUrl,
+            mediaId: profile?.thumbMediaId,
+            ownerId: conversation.profileId,
             size: 52,
           ),
           if (profile?.online ?? false)

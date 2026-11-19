@@ -185,4 +185,7 @@ class Profile {
 
   /// Small image for avatars and grid tiles, if any.
   String? get thumbUrl => photos.isEmpty ? null : photos.first.thumbUrl;
+
+  /// Media id of the [thumbUrl] photo; its cache key.
+  String? get thumbMediaId => photos.isEmpty ? null : photos.first.id;
 }

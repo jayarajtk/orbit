@@ -50,6 +50,7 @@ class MeScreen extends ConsumerWidget {
                 seed: 'me',
                 size: 84,
                 photoUrl: me.photos.isEmpty ? null : me.photos.first.thumbUrl,
+                mediaId: me.photos.isEmpty ? null : me.photos.first.id,
               ),
               const SizedBox(width: 16),
               Expanded(

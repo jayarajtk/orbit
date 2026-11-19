@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:orbit/core/widgets/media_image.dart';
 import 'package:orbit/features/safety/data/safety_repository.dart';
 
 export 'package:orbit/features/safety/data/safety_repository.dart'
@@ -51,7 +52,7 @@ class BlockedNotifier extends Notifier<Set<String>> {
   /// Blocks [id] (named [name] for the blocked list).
   Future<void> block(String id, {required String name}) async {
     await _repository.block(id);
-    _add(id, name);
+    await _add(id, name);
   }
 
   /// Unblocks [id].
@@ -71,7 +72,7 @@ class BlockedNotifier extends Notifier<Set<String>> {
     ref
         .read(reportsProvider.notifier)
         .file(Report(profileId: id, reason: reason));
-    if (alsoBlock) _add(id, name);
+    if (alsoBlock) await _add(id, name);
   }
 
   /// Loads the blocked list from the server (after sign-in).
@@ -81,9 +82,10 @@ class BlockedNotifier extends Notifier<Set<String>> {
     state = blocked.keys.toSet();
   }
 
-  void _add(String id, String name) {
+  Future<void> _add(String id, String name) async {
     ref.read(blockedNamesProvider.notifier).put(id, name);
     state = {...state, id};
+    await ref.read(orbitImageCacheProvider).evictOwner(id);
   }
 }
 

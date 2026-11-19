@@ -17,6 +17,7 @@ import 'package:orbit/features/profile/presentation/my_photos_actions.dart';
 import 'package:orbit/features/profile/presentation/my_profile_controller.dart';
 
 import '../helpers/fake_api.dart';
+import '../helpers/fake_image_cache.dart';
 import '../helpers/pump_app.dart';
 
 class _CountingPicker implements MediaPicker {
@@ -172,6 +173,19 @@ void main() {
       find.textContaining('Meet somewhere public the first time'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('sign-out clears the image cache', (tester) async {
+    final cache = FakeImageCache();
+    await pumpOrbit(tester, imageCache: cache);
+    await onboard(tester);
+    await tapText(tester, 'Me');
+    await tapText(tester, 'Settings & privacy');
+
+    await tester.scrollUntilVisible(find.text('Sign out'), 200);
+    await tapText(tester, 'Sign out');
+
+    expect(cache.calls, ['clearAll']);
   });
 
   testWidgets('signing out returns to Welcome and clears state', (

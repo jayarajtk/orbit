@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbit/core/auth/auth_repository.dart';
 import 'package:orbit/core/network/account_restriction.dart';
+import 'package:orbit/core/widgets/media_image.dart';
 import 'package:orbit/features/albums/presentation/albums_controller.dart';
 import 'package:orbit/features/chat/data/chat_gateway.dart';
 import 'package:orbit/features/chat/presentation/chat_controller.dart';
@@ -93,6 +94,7 @@ class SessionController {
   /// Ends the session and clears every piece of per-member state.
   Future<void> signOut() async {
     await _ref.read(authRepositoryProvider).signOut();
+    await _ref.read(orbitImageCacheProvider).clearAll();
     _ref
       ..invalidate(accountRestrictedProvider)
       ..invalidate(myProfileProvider)
