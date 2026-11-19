@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +12,7 @@ import 'package:orbit/features/discovery/domain/discovery_filters.dart';
 import 'package:orbit/features/discovery/domain/profile.dart';
 import 'package:orbit/features/media/data/media_capture.dart';
 import 'package:orbit/features/media/data/media_repository.dart';
+import 'package:orbit/features/media/domain/media.dart';
 import 'package:orbit/features/profile/presentation/me_screen.dart';
 import 'package:orbit/features/status/data/status_repository.dart';
 import 'package:orbit/features/status/domain/status.dart';
@@ -26,6 +30,19 @@ class _Picker implements MediaPicker {
 
   @override
   Future<PickedMedia?> pickVideo({required Duration maxDuration}) async => null;
+}
+
+/// An upload that finishes when the test says so.
+class _PendingUpload implements MediaRepository {
+  final Completer<UploadedMedia> result = Completer();
+
+  @override
+  Future<UploadedMedia> upload(
+    MediaPurpose purpose,
+    Uint8List bytes,
+    String contentType, {
+    int? durationMs,
+  }) => result.future;
 }
 
 class _CountingProfiles extends FakeProfileRepository {
@@ -71,7 +88,7 @@ const Map<String, Object?> _created = {
 };
 
 class _Api {
-  _Api({bool limit = false}) {
+  _Api({bool limit = false, this.upload}) {
     var posted = false;
     api = FakeAdapter(
       {
@@ -114,16 +131,20 @@ class _Api {
     storage = FakeAdapter({'PUT https://storage.test/m/m1': (200, null)});
   }
 
+  /// Replaces the HTTP upload when set.
+  final MediaRepository? upload;
+
   late final FakeAdapter api;
   late final FakeAdapter storage;
 
   List<Override> get overrides => [
     mediaPickerProvider.overrideWithValue(_Picker()),
     mediaRepositoryProvider.overrideWithValue(
-      ApiMediaRepository(
-        dioWith(api),
-        Dio()..httpClientAdapter = storage,
-      ),
+      upload ??
+          ApiMediaRepository(
+            dioWith(api),
+            Dio()..httpClientAdapter = storage,
+          ),
     ),
     statusRepositoryProvider.overrideWithValue(
       ApiStatusRepository(dioWith(api)),
@@ -210,7 +231,9 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('New status'), findsOneWidget);
+    expect(find.text('New status'), findsNothing);
+    expect(find.byKey(const ValueKey('status-posting')), findsNothing);
+    expect(find.byType(MeAvatar), findsOneWidget);
   });
 
   testWidgets('grid tile with UNSEEN status shows a gradient ring; tapping '
@@ -314,5 +337,32 @@ void main() {
     expect(find.byType(StatusViewerScreen), findsOneWidget);
     await tester.pumpAndSettle();
     expect(api.calls, contains('GET /profiles/p1/statuses'));
+  });
+
+  testWidgets('the Me avatar shows progress while posting, then the ring', (
+    tester,
+  ) async {
+    final upload = _PendingUpload();
+    await _openComposer(tester, _Api(upload: upload));
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Post'));
+    // The spinner animates for as long as the upload is pending.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('New status'), findsNothing);
+    expect(find.byKey(const ValueKey('status-posting')), findsOneWidget);
+    expect(_ringIn(tester, find.byType(MeAvatar)), StatusRing.none);
+
+    upload.result.complete(
+      UploadedMedia(
+        id: 'm1',
+        links: MediaLinks(url: 'u', expiresAt: DateTime.utc(2026, 11, 10)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('status-posting')), findsNothing);
+    expect(_ringIn(tester, find.byType(MeAvatar)), StatusRing.unseen);
   });
 }

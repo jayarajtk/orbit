@@ -1636,6 +1636,12 @@ abstract class AppLocalizations {
   /// **'New status'**
   String get statusAdd;
 
+  /// No description provided for @statusPosting.
+  ///
+  /// In en, this message translates to:
+  /// **'Posting your status'**
+  String get statusPosting;
+
   /// No description provided for @statusMine.
   ///
   /// In en, this message translates to:

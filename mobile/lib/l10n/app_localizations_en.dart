@@ -876,6 +876,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get statusAdd => 'New status';
 
   @override
+  String get statusPosting => 'Posting your status';
+
+  @override
   String get statusMine => 'My status';
 
   @override

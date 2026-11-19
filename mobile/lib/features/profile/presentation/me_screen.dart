@@ -25,6 +25,20 @@ class MeScreen extends ConsumerWidget {
     final me = ref.watch(myProfileProvider);
     final hasPlus = ref.watch(plusProvider);
     final hasStatus = ref.watch(myStatusesProvider).value?.isNotEmpty ?? false;
+    ref.listen(statusPostingProvider, (_, posting) {
+      final failure = posting.failure;
+      if (failure == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(switch (failure) {
+            StatusPostFailure.limit => l10n.statusLimitReached,
+            StatusPostFailure.rejected => l10n.uploadFailed,
+            StatusPostFailure.other => l10n.actionFailed,
+          }),
+        ),
+      );
+      ref.read(statusPostingProvider.notifier).clear();
+    });
     if (me == null) return const SizedBox.shrink();
 
     final items = [
@@ -155,6 +169,7 @@ class MeAvatar extends ConsumerWidget {
     final main = me.photos.isEmpty ? null : me.photos.first;
     // The member's own statuses are never "unseen" by them, but the ring
     // still says there is something live.
+    final isPosting = ref.watch(statusPostingProvider).isPosting;
     final ring = (ref.watch(myStatusesProvider).value?.isNotEmpty ?? false)
         ? StatusRing.unseen
         : StatusRing.none;
@@ -174,18 +189,32 @@ class MeAvatar extends ConsumerWidget {
                 onTap: () => main == null
                     ? _addFirstPhoto(context, ref)
                     : context.push('${AppRoutes.myPhotos}?index=0'),
-                child: StatusRingFrame(
-                  ring: ring,
-                  child: Hero(
-                    tag: myMainPhotoHeroTag,
-                    child: ProfileAvatar(
-                      name: me.displayName,
-                      seed: 'me',
-                      size: _size,
-                      photoUrl: main?.thumbUrl,
-                      mediaId: main?.id,
+                child: Stack(
+                  children: [
+                    StatusRingFrame(
+                      ring: ring,
+                      child: Hero(
+                        tag: myMainPhotoHeroTag,
+                        child: ProfileAvatar(
+                          name: me.displayName,
+                          seed: 'me',
+                          size: _size,
+                          photoUrl: main?.thumbUrl,
+                          mediaId: main?.id,
+                        ),
+                      ),
                     ),
-                  ),
+                    if (isPosting)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CircularProgressIndicator(
+                            key: const ValueKey('status-posting'),
+                            strokeWidth: 2.5,
+                            semanticsLabel: l10n.statusPosting,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),

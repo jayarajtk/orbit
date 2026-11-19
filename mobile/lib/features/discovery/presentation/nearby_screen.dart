@@ -332,9 +332,13 @@ class _RingBadge extends StatelessWidget {
         child: const DecoratedBox(
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: Color(0xB80E0C1F),
+            color: Color(0xB80E0C1F), // photo-overlay
           ),
-          child: Icon(Icons.play_arrow_rounded, size: 16, color: Colors.white),
+          child: Icon(
+            Icons.play_arrow_rounded,
+            size: 16,
+            color: Colors.white, // photo-overlay
+          ),
         ),
       ),
     );
