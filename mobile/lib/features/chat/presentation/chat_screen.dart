@@ -44,15 +44,21 @@ class ChatScreen extends ConsumerWidget {
       ),
     );
     final cached = ref.watch(profilesByIdProvider)[profileId];
+    // The grid's copy stands in while the fresh one loads, and if fetching
+    // it fails, so a weak connection doesn't close the chat and lose the
+    // draft.
+    final fallback = cached != null && !blocked
+        ? _ChatView(profile: cached)
+        : null;
     return ref
         .watch(profileByIdProvider(profileId))
         .when(
-          loading: () => cached != null && !blocked
-              ? _ChatView(profile: cached)
-              : const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
-                ),
-          error: (_, _) => unavailable,
+          loading: () =>
+              fallback ??
+              const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              ),
+          error: (_, _) => fallback ?? unavailable,
           data: (profile) => profile == null || blocked
               ? unavailable
               : _ChatView(profile: profile),

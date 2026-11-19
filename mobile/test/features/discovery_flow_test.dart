@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbit/app/theme.dart';
+import 'package:orbit/core/network/api_client.dart';
 import 'package:orbit/core/widgets/glass_icon_button.dart';
 import 'package:orbit/core/widgets/media_image.dart';
 import 'package:orbit/core/widgets/photo_viewer.dart';
@@ -74,6 +75,16 @@ class _PhotosRepository extends FakeProfileRepository {
 
   @override
   Future<Profile?> byId(String id) async => _alex();
+}
+
+/// Serves the grid, but every single-profile fetch fails as on a weak
+/// connection.
+class _OfflineByIdRepository extends FakeProfileRepository {
+  _OfflineByIdRepository() : super(latency: Duration.zero);
+
+  @override
+  Future<Profile?> byId(String id) async =>
+      throw const ApiException(status: 0, type: 'network');
 }
 
 /// Counts grid loads and, while [gate] is set, holds them open.
@@ -163,6 +174,30 @@ void main() {
 
     expect(find.text('Alex, 27'), findsOneWidget);
     expect(errors.map((e) => e.exceptionAsString()), isEmpty);
+  });
+
+  testWidgets('a failed profile refetch keeps the grid copy on profile and '
+      'chat', (tester) async {
+    await pumpOrbit(tester, profiles: _OfflineByIdRepository());
+    await onboard(tester);
+
+    // Long enough for Riverpod's automatic retries to give up.
+    Future<void> settleRetries() async {
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(seconds: 10));
+      }
+      await tester.pumpAndSettle();
+    }
+
+    await tapText(tester, 'Alex 27');
+    await settleRetries();
+    expect(find.text('Alex, 27'), findsOneWidget);
+    expect(find.text("This profile isn't available."), findsNothing);
+
+    await tapText(tester, 'Message');
+    await settleRetries();
+    expect(find.widgetWithText(TextField, 'Message…'), findsOneWidget);
+    expect(find.text("This profile isn't available."), findsNothing);
   });
 
   testWidgets('profile shows photos added since the grid loaded', (
