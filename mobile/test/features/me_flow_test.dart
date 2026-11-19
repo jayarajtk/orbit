@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,6 +25,7 @@ import 'package:orbit/features/profile/presentation/my_photos_actions.dart';
 import 'package:orbit/features/profile/presentation/my_photos_viewer.dart';
 import 'package:orbit/features/profile/presentation/my_profile_controller.dart';
 import 'package:orbit/l10n/app_localizations.dart';
+import 'package:orbit/l10n/app_localizations_en.dart';
 
 import '../helpers/fake_api.dart';
 import '../helpers/fake_image_cache.dart';
@@ -160,10 +162,29 @@ Future<void> _openMyPhotos(WidgetTester tester, List<String> ids) async {
   await tester.pumpAndSettle();
 }
 
+/// Holds back the album reload while [reloadGate] is set.
+class _GatedAlbumAdapter extends FakeAdapter {
+  _GatedAlbumAdapter(super.routes, {super.handlers});
+
+  Completer<void>? reloadGate;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    if (options.method == 'GET' && options.path == '/albums/a1') {
+      await reloadGate?.future;
+    }
+    return super.fetch(options, requestStream, cancelFuture);
+  }
+}
+
 /// The album endpoints of the API, with the album's photo ids in memory.
 class _AlbumServer {
   _AlbumServer(List<String> initial) : photoIds = [...initial] {
-    adapter = FakeAdapter(
+    adapter = _GatedAlbumAdapter(
       const {},
       handlers: {
         'GET /albums': (_) => (
@@ -177,26 +198,28 @@ class _AlbumServer {
             },
           ],
         ),
-        'GET /albums/a1': (_) => (
-          200,
-          {
-            'id': 'a1',
-            'ownerId': 'me',
-            'name': 'Travel',
-            'viewOnce': false,
-            'photos': [
-              for (final id in photoIds)
+        'GET /albums/a1': (_) => failReload
+            ? (500, problem('server', 500))
+            : (
+                200,
                 {
-                  'id': id,
-                  'links': {
-                    'url': 'http://x/$id',
-                    'thumbUrl': 'http://x/t$id',
-                    'expiresAt': '2030-01-01T00:00:00Z',
-                  },
+                  'id': 'a1',
+                  'ownerId': 'me',
+                  'name': 'Travel',
+                  'viewOnce': false,
+                  'photos': [
+                    for (final id in photoIds)
+                      {
+                        'id': id,
+                        'links': {
+                          'url': 'http://x/$id',
+                          'thumbUrl': 'http://x/t$id',
+                          'expiresAt': '2030-01-01T00:00:00Z',
+                        },
+                      },
+                  ],
                 },
-            ],
-          },
-        ),
+              ),
         'POST /albums/a1/photos': (options) {
           photoIds.add((options.data as Map)['mediaId'] as String);
           return (204, null);
@@ -211,7 +234,8 @@ class _AlbumServer {
   }
 
   final List<String> photoIds;
-  late final FakeAdapter adapter;
+  bool failReload = false;
+  late final _GatedAlbumAdapter adapter;
 
   List<String> get deletes => [
     for (final r in adapter.requests)
@@ -672,6 +696,69 @@ void main() {
       expect(_albumTile('m1'), findsOneWidget);
       expect(_albumTile('m2'), findsOneWidget);
       expect(_albumTile('m3'), findsOneWidget);
+    });
+
+    testWidgets('a finished upload tile is replaced in place by its photo', (
+      tester,
+    ) async {
+      final server = _AlbumServer(['p1']);
+      final uploads = _GatedUploads();
+      await _pumpAlbum(
+        tester,
+        server,
+        uploads: uploads,
+        picker: _ManyPicker(1),
+      );
+      await tester.tap(find.text('Add photos'));
+      await tester.pump();
+      await tester.pump();
+
+      // The reload is slow: the slot must stay filled until it lands.
+      server.adapter.reloadGate = Completer();
+      uploads.finish(0);
+      for (var frame = 0; frame < 5; frame++) {
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(
+          _uploadingTiles().evaluate().length +
+              _albumTile('m1').evaluate().length,
+          1,
+          reason: 'frame $frame',
+        );
+        expect(_albumTile('p1'), findsOneWidget);
+      }
+      expect(_albumTile('m1'), findsNothing);
+
+      server.adapter.reloadGate!.complete();
+      for (var frame = 0; frame < 3; frame++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      expect(_uploadingTiles(), findsNothing);
+      expect(_albumTile('m1'), findsOneWidget);
+      expect(_albumTile('p1'), findsOneWidget);
+    });
+
+    testWidgets('a failed refresh keeps the album on screen', (tester) async {
+      final server = _AlbumServer(['p1']);
+      final uploads = _GatedUploads();
+      await _pumpAlbum(
+        tester,
+        server,
+        uploads: uploads,
+        picker: _ManyPicker(1),
+      );
+      await tester.tap(find.text('Add photos'));
+      await tester.pump();
+      await tester.pump();
+
+      server.failReload = true;
+      uploads.finish(0);
+      for (var frame = 0; frame < 5; frame++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      expect(find.text(AppLocalizationsEn().albumGone), findsNothing);
+      expect(_albumTile('p1'), findsOneWidget);
     });
 
     testWidgets('a failed upload tile offers retry', (tester) async {

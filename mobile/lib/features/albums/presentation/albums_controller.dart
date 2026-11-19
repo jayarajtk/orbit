@@ -35,6 +35,10 @@ class AlbumUpload {
   /// when attached.
   final double progress;
 
+  /// Whether the photo is attached to the album and only waits for the
+  /// album screen to show it.
+  bool get done => progress >= 1;
+
   /// The upload or the attach was refused; the tile offers a retry.
   final bool failed;
 
@@ -182,7 +186,9 @@ class AlbumsController extends Notifier<List<Album>> {
     }
     if (!ref.mounted) return;
     _picked.remove(localId);
-    uploads.remove(albumId, localId);
+    // The tile stays, done, until the album screen shows the photo in its
+    // place and drops it; see [AlbumUpload.done].
+    uploads.update(albumId, localId, (u) => u.copyWith(progress: 1));
     await load();
   }
 

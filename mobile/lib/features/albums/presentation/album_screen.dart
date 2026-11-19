@@ -44,14 +44,29 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     unawaited(_open());
   }
 
+  /// Loads the album. Upload tiles whose photo was already attached when
+  /// the request started are dropped in the same frame the album arrives, so
+  /// each tile is replaced by its photo in place. A failed reload keeps the
+  /// album on screen; only the first load can show "album gone".
   Future<void> _open() async {
+    final shown = [
+      for (final u
+          in ref.read(albumUploadsProvider)[widget.albumId] ??
+              const <AlbumUpload>[])
+        if (u.done) u.localId,
+    ];
     try {
       final album = await ref
           .read(albumRepositoryProvider)!
           .open(widget.albumId);
-      if (mounted) setState(() => _album = album);
+      if (!mounted) return;
+      setState(() => _album = album);
+      final controller = ref.read(albumsProvider.notifier);
+      for (final id in shown) {
+        controller.discardUpload(widget.albumId, id);
+      }
     } on ApiException {
-      if (mounted) setState(() => _failed = true);
+      if (mounted && _album == null) setState(() => _failed = true);
     }
   }
 
@@ -117,11 +132,13 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     final album = _album;
     final mine = _mine;
     final uploads = ref.watch(albumUploadsProvider)[widget.albumId] ?? const [];
-    // A finished upload is now on the server: show it as a photo.
+    // A finished upload is now on the server: fetch it, then swap its tile.
     ref.listen(
-      albumUploadsProvider.select((all) => all[widget.albumId]?.length ?? 0),
+      albumUploadsProvider.select(
+        (all) => all[widget.albumId]?.where((u) => u.done).length ?? 0,
+      ),
       (previous, next) {
-        if (next < (previous ?? 0)) unawaited(_open());
+        if (next > (previous ?? 0)) unawaited(_open());
       },
     );
     final busy = uploads.any((u) => !u.failed);
