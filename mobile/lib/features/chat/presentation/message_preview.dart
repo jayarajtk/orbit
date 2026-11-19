@@ -22,12 +22,24 @@ String messagePreview(AppLocalizations l10n, Message message) {
 }
 
 /// Short timestamp: time today, weekday this week, otherwise the date.
+///
+/// Both arguments may be UTC; they are compared and formatted in local time.
 String shortTimestamp(BuildContext context, DateTime time, DateTime now) {
   final locale = Localizations.localeOf(context).toLanguageTag();
-  final today = DateTime(now.year, now.month, now.day);
-  if (!time.isBefore(today)) return DateFormat.jm(locale).format(time);
-  if (today.difference(time).inDays < 6) {
-    return DateFormat.E(locale).format(time);
+  final localTime = time.toLocal();
+  final localNow = now.toLocal();
+  final today = DateTime(localNow.year, localNow.month, localNow.day);
+  if (!localTime.isBefore(today)) {
+    return DateFormat.jm(locale).format(localTime);
   }
-  return DateFormat.MMMd(locale).format(time);
+  if (today.difference(localTime).inDays < 6) {
+    return DateFormat.E(locale).format(localTime);
+  }
+  return DateFormat.MMMd(locale).format(localTime);
+}
+
+/// Time of day for a message, in the member's local time.
+String messageTime(BuildContext context, DateTime time) {
+  final locale = Localizations.localeOf(context).toLanguageTag();
+  return DateFormat.jm(locale).format(time.toLocal());
 }
