@@ -8,6 +8,7 @@ import static org.mockito.BDDMockito.given;
 import com.orbit.MutableClock;
 import com.orbit.TestcontainersConfiguration;
 import com.orbit.identity.IdentityApi;
+import com.orbit.media.application.MediaScanner;
 import com.orbit.shared.CountingDataSource;
 import com.orbit.shared.CountingDataSource.Counted;
 import com.orbit.status.StatusApi.StatusExpired;
@@ -34,6 +35,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -42,7 +44,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureRestTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -63,7 +67,8 @@ import tools.jackson.databind.json.JsonMapper;
   TestcontainersConfiguration.class,
   MutableClock.Config.class,
   CountingDataSource.Config.class,
-  StatusIntegrationTests.ExpiryRecorder.class
+  StatusIntegrationTests.ExpiryRecorder.class,
+  StatusIntegrationTests.ScannerConfig.class
 })
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureRestTestClient
@@ -83,9 +88,26 @@ class StatusIntegrationTests {
   @Autowired CountingDataSource dataSource;
   @Autowired MeterRegistry meters;
   @Autowired ExpiryRecorder expiries;
+  @Autowired AtomicReference<MediaScanner.Verdict> verdict;
 
   private final HttpClient http = HttpClient.newHttpClient();
   private final Map<String, String> ids = new HashMap<>();
+
+  /** A scanner whose verdict each test chooses. */
+  @TestConfiguration(proxyBeanMethods = false)
+  static class ScannerConfig {
+
+    @Bean
+    AtomicReference<MediaScanner.Verdict> scannerVerdict() {
+      return new AtomicReference<>(MediaScanner.Verdict.CLEAN);
+    }
+
+    @Bean
+    @Primary
+    MediaScanner testScanner(AtomicReference<MediaScanner.Verdict> scannerVerdict) {
+      return (kind, content) -> scannerVerdict.get();
+    }
+  }
 
   /**
    * Records {@link StatusExpired} after commit. Being a transactional listener, it also makes
@@ -120,6 +142,7 @@ class StatusIntegrationTests {
       jdbc.sql("DELETE FROM " + table).update();
     }
     expiries.events().clear();
+    verdict.set(MediaScanner.Verdict.CLEAN);
     clock.set(START);
     given(jwtDecoder.decode(anyString()))
         .willAnswer(call -> {
@@ -361,6 +384,19 @@ class StatusIntegrationTests {
 
       expectProblem(
           postStatus("alice", bobs, null), HttpStatus.UNPROCESSABLE_CONTENT, "invalid-status");
+      assertThat(jdbc.sql("SELECT count(*) FROM status").query(Long.class).single()).isZero();
+    }
+
+    @Test
+    void privateOnlyPhotoRefused() throws Exception {
+      verdict.set(MediaScanner.Verdict.PRIVATE_ONLY);
+      String privateOnly = photo("alice", "STATUS_PHOTO");
+
+      // A status reaches the same audience as the profile, so the public-photo rule applies.
+      expectProblem(
+          postStatus("alice", privateOnly, null),
+          HttpStatus.UNPROCESSABLE_CONTENT,
+          "invalid-status");
       assertThat(jdbc.sql("SELECT count(*) FROM status").query(Long.class).single()).isZero();
     }
 

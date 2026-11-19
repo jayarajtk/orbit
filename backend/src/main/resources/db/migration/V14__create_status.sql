@@ -1,9 +1,10 @@
 -- 24-hour photo statuses (spec §8.1). Reads filter on expires_at, so an expired status is never
 -- served even before the reaper deletes it. media_id has no foreign key: the photo is purged
--- through the StatusExpired event once the status is gone.
+-- through the StatusExpired event once the status is gone. References to account cascade, like
+-- every other member-owned table.
 create table status (
   id          uuid primary key,
-  owner_id    uuid not null references account(id),
+  owner_id    uuid not null references account(id) on delete cascade,
   media_id    uuid not null,
   caption     varchar(100),
   created_at  timestamptz not null,
@@ -15,7 +16,7 @@ create index status_expiry on status (expires_at);
 
 create table status_view (
   status_id  uuid not null references status(id) on delete cascade,
-  viewer_id  uuid not null references account(id),
+  viewer_id  uuid not null references account(id) on delete cascade,
   viewed_at  timestamptz not null,
   created_at timestamptz not null,
   updated_at timestamptz not null,

@@ -2,6 +2,7 @@ package com.orbit.status.application;
 
 import com.orbit.identity.IdentityApi;
 import com.orbit.media.MediaApi;
+import com.orbit.media.MediaApi.Kind;
 import com.orbit.media.MediaApi.Links;
 import com.orbit.profile.ProfileApi;
 import com.orbit.safety.SafetyApi;
@@ -93,13 +94,16 @@ public class StatusService implements StatusApi {
    * @param caption at most {@link #MAX_CAPTION} characters (checked at the API boundary); blank
    *     means none
    * @throws IdentityApi.AccountRestrictedException if the caller is suspended or banned
-   * @throws MediaApi.MediaUnavailableException if the photo isn't the caller's ready status photo
+   * @throws MediaApi.MediaUnavailableException if the photo isn't the caller's ready status photo,
+   *     or the scanner allows it only in private
    * @throws InvalidStatusException if the photo is already used by another status
    * @throws StatusLimitException if the caller already has {@link #MAX_LIVE} live statuses
    */
   @Transactional
   public MyStatus post(String callerSubject, UUID mediaId, String caption) {
     UUID me = identity.require(callerSubject).id();
+    // A status reaches the same audience as the profile, so the public-photo rule applies.
+    media.requireAttachable(me, mediaId, Kind.PHOTO, true);
     media.requirePurpose(me, mediaId, STATUS_PHOTO);
     Instant now = clock.instant();
     // Serializes this member's posts, so two concurrent posts can't both take the last slot.
