@@ -90,15 +90,41 @@ class LargeTitleSliverAppBar extends StatelessWidget {
       flexibleSpace: FrostedBackground(
         edge: FrostedEdge.bottom,
         child: FlexibleSpaceBar(
+          // iOS centres FlexibleSpaceBar titles by default; large titles lead.
+          centerTitle: false,
           expandedTitleScale: _largeScale,
           titlePadding: const EdgeInsetsDirectional.only(start: 16, bottom: 14),
-          title: Text(
-            title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: tokens.text,
-            ),
-          ),
+          title: _LargeTitle(title: title, color: tokens.text),
         ),
+      ),
+    );
+  }
+}
+
+/// The bar's title: the 17 pt title style, scaled to 34 pt by the bar while
+/// expanded. Scaling can't change the weight, so it is bold while the bar is
+/// mostly expanded and semibold once it is mostly collapsed.
+class _LargeTitle extends StatelessWidget {
+  const _LargeTitle({required this.title, required this.color});
+
+  final String title;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context
+        .dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
+    final range = settings == null
+        ? 0.0
+        : settings.maxExtent - settings.minExtent;
+    final expanded = settings == null || range <= 0
+        ? 1.0
+        : (settings.currentExtent - settings.minExtent) / range;
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+        color: color,
+        fontWeight: expanded >= 0.5 ? FontWeight.w700 : FontWeight.w600,
       ),
     );
   }
