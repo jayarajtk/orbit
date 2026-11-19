@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -25,7 +27,8 @@ class MeScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final me = ref.watch(myProfileProvider);
     final hasPlus = ref.watch(plusProvider);
-    final hasStatus = ref.watch(myStatusesProvider).value?.isNotEmpty ?? false;
+    final hasStatus =
+        ref.watch(liveMyStatusesProvider).value?.isNotEmpty ?? false;
     ref.listen(statusPostingProvider, (_, posting) {
       final failure = posting.failure;
       if (failure == null) return;
@@ -51,101 +54,136 @@ class MeScreen extends ConsumerWidget {
       (Icons.settings_outlined, l10n.menuSettings, AppRoutes.settings),
     ];
 
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          LargeTitleSliverAppBar(
-            title: l10n.meTitle,
-            actions: [
-              IconButton(
-                tooltip: l10n.settingsTooltip,
-                icon: const Icon(Icons.settings_outlined),
-                onPressed: () => context.push(AppRoutes.settings),
-              ),
-            ],
-          ),
-          SliverPadding(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              16,
-              16,
-              16 + MediaQuery.paddingOf(context).bottom,
-            ),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                Row(
-                  children: [
-                    MeAvatar(onAddStatus: () => addStatus(context, ref)),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  l10n.nameAge(me.displayName, me.age),
-                                  style: theme.textTheme.titleLarge,
-                                ),
-                              ),
-                              if (hasPlus) ...[
-                                const SizedBox(width: 8),
-                                Chip(
-                                  label: Text(l10n.orbitPlus),
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          LinearProgressIndicator(
-                            value: me.completionPercent / 100,
-                            borderRadius: BorderRadius.circular(3),
-                            minHeight: 6,
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            l10n.profileComplete(me.completionPercent),
-                            style: TextStyle(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+    return _RefreshStatusesWhenShown(
+      child: Scaffold(
+        body: CustomScrollView(
+          slivers: [
+            LargeTitleSliverAppBar(
+              title: l10n.meTitle,
+              actions: [
+                IconButton(
+                  tooltip: l10n.settingsTooltip,
+                  icon: const Icon(Icons.settings_outlined),
+                  onPressed: () => context.push(AppRoutes.settings),
                 ),
-                const SizedBox(height: 24),
-                Card(
-                  margin: EdgeInsets.zero,
-                  child: Column(
+              ],
+            ),
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                16 + MediaQuery.paddingOf(context).bottom,
+              ),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  Row(
                     children: [
-                      ListTile(
-                        leading: const Icon(Icons.motion_photos_on_outlined),
-                        title: Text(l10n.statusMine),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () => hasStatus
-                            ? context.push(AppRoutes.myStatuses)
-                            : addStatus(context, ref),
-                      ),
-                      for (final (icon, label, route) in items)
-                        ListTile(
-                          leading: Icon(icon),
-                          title: Text(label),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => context.push(route),
+                      MeAvatar(onAddStatus: () => addStatus(context, ref)),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    l10n.nameAge(me.displayName, me.age),
+                                    style: theme.textTheme.titleLarge,
+                                  ),
+                                ),
+                                if (hasPlus) ...[
+                                  const SizedBox(width: 8),
+                                  Chip(
+                                    label: Text(l10n.orbitPlus),
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            LinearProgressIndicator(
+                              value: me.completionPercent / 100,
+                              borderRadius: BorderRadius.circular(3),
+                              minHeight: 6,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              l10n.profileComplete(me.completionPercent),
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
                         ),
+                      ),
                     ],
                   ),
-                ),
-              ]),
+                  const SizedBox(height: 24),
+                  Card(
+                    margin: EdgeInsets.zero,
+                    child: Column(
+                      children: [
+                        ListTile(
+                          leading: const Icon(Icons.motion_photos_on_outlined),
+                          title: Text(l10n.statusMine),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => hasStatus
+                              ? context.push(AppRoutes.myStatuses)
+                              : addStatus(context, ref),
+                        ),
+                        for (final (icon, label, route) in items)
+                          ListTile(
+                            leading: Icon(icon),
+                            title: Text(label),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => context.push(route),
+                          ),
+                      ],
+                    ),
+                  ),
+                ]),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
+}
+
+/// Fetches the user's statuses again each time the Me tab comes back into
+/// view (another tab or a pushed screen hid it), so new viewers and expiries
+/// show without a restart. Hidden tabs and covered routes run with tickers
+/// off, which is how this notices.
+class _RefreshStatusesWhenShown extends ConsumerStatefulWidget {
+  const _RefreshStatusesWhenShown({required this.child});
+
+  final Widget child;
+
+  @override
+  ConsumerState<_RefreshStatusesWhenShown> createState() =>
+      _RefreshStatusesWhenShownState();
+}
+
+class _RefreshStatusesWhenShownState
+    extends ConsumerState<_RefreshStatusesWhenShown> {
+  // Null until first built: the first showing loads the list anyway.
+  bool? _shown;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final shown = TickerMode.valuesOf(context).enabled;
+    if (shown && _shown == false) {
+      unawaited(ref.read(myStatusesProvider.notifier).refresh());
+    }
+    _shown = shown;
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// Hero tag shared by the avatar and the first page of the photo viewer.
@@ -182,7 +220,7 @@ class MeAvatar extends ConsumerWidget {
     // The member's own statuses are never "unseen" by them, but the ring
     // still says there is something live.
     final isPosting = ref.watch(statusPostingProvider).isPosting;
-    final ring = (ref.watch(myStatusesProvider).value?.isNotEmpty ?? false)
+    final ring = (ref.watch(liveMyStatusesProvider).value?.isNotEmpty ?? false)
         ? StatusRing.unseen
         : StatusRing.none;
     final onAddStatus = this.onAddStatus;

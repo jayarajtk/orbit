@@ -145,6 +145,10 @@ class MyStatus {
   /// When it disappears (UTC).
   final DateTime expiresAt;
 
+  /// Whether it is still live at [now]. The server deletes expired statuses
+  /// on a schedule, so a list fetched earlier can hold some that are gone.
+  bool isLiveAt(DateTime now) => expiresAt.isAfter(now);
+
   /// How many members viewed it.
   final int viewCount;
 

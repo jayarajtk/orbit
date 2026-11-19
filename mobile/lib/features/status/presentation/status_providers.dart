@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
+import 'package:orbit/core/clock.dart';
 import 'package:orbit/core/network/api_client.dart';
 import 'package:orbit/features/discovery/domain/profile.dart';
 import 'package:orbit/features/media/data/media_capture.dart';
@@ -33,11 +34,40 @@ class MyStatusesNotifier extends AsyncNotifier<List<MyStatus>> {
     await _reload();
   }
 
+  /// Fetches the list again so new viewers and expiries show. Keeps the
+  /// current list when the server can't be reached.
+  Future<void> refresh() async {
+    try {
+      await _reload();
+    } on ApiException catch (error, stack) {
+      developer.log(
+        'Could not refresh my statuses (status ${error.status})',
+        name: 'orbit.status',
+        stackTrace: stack,
+      );
+    }
+  }
+
   Future<void> _reload() async {
     final statuses = await ref.read(statusRepositoryProvider).mine();
     if (ref.mounted) state = AsyncData(statuses);
   }
 }
+
+/// The user's statuses that have not expired by the app clock, so the Me
+/// ring and the own viewer drop a status at its expiry even before the
+/// server's list catches up.
+final liveMyStatusesProvider = Provider<AsyncValue<List<MyStatus>>>((ref) {
+  final now = ref.watch(clockProvider)();
+  return ref
+      .watch(myStatusesProvider)
+      .whenData(
+        (statuses) => [
+          for (final status in statuses)
+            if (status.isLiveAt(now)) status,
+        ],
+      );
+});
 
 /// A member's live statuses (keyed by profile id), fetched on every visit.
 final FutureProviderFamily<List<StatusItem>, String> profileStatusesProvider =

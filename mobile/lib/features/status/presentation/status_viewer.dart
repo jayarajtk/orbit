@@ -72,20 +72,43 @@ class _Slide {
 
 /// Full-screen statuses, one after another, like a story. [profileId] is
 /// `me` for the user's own.
-class StatusViewerScreen extends ConsumerWidget {
+class StatusViewerScreen extends ConsumerStatefulWidget {
   /// Creates the viewer for [profileId].
   const StatusViewerScreen({required this.profileId, super.key});
 
   /// Member whose statuses play, or `me`.
   final String profileId;
 
+  @override
+  ConsumerState<StatusViewerScreen> createState() => _StatusViewerScreenState();
+}
+
+class _StatusViewerScreenState extends ConsumerState<StatusViewerScreen> {
+  String get profileId => widget.profileId;
+
   bool get _isMine => profileId == _ownStatuses;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  void initState() {
+    super.initState();
+    // The user's own list is kept between visits; fetch it again so views
+    // since the last visit show. Providers can't change during a build.
+    if (_isMine) {
+      unawaited(
+        Future.microtask(() async {
+          if (mounted) {
+            await ref.read(myStatusesProvider.notifier).refresh();
+          }
+        }),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final slides = _isMine
         ? ref
-              .watch(myStatusesProvider)
+              .watch(liveMyStatusesProvider)
               // Newest first from the server; story order is oldest first.
               .whenData(
                 (list) => [for (final s in list.reversed) _Slide.fromMine(s)],

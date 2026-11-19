@@ -374,6 +374,54 @@ void main() {
     expect(_ringIn(tester, find.byType(MeAvatar)), StatusRing.unseen);
   });
 
+  testWidgets('an expired status gives the Me avatar no ring', (tester) async {
+    final api = FakeAdapter(
+      const {},
+      handlers: {
+        'GET /me/statuses': (_) => (
+          200,
+          [
+            {
+              ..._created,
+              'createdAt': '2026-11-08T11:00:00Z',
+              'expiresAt': '2026-11-09T11:00:00Z',
+            },
+          ],
+        ),
+      },
+    );
+    await pumpOrbit(
+      tester,
+      now: DateTime.utc(2026, 11, 9, 12),
+      overrides: [
+        statusRepositoryProvider.overrideWithValue(
+          ApiStatusRepository(dioWith(api)),
+        ),
+      ],
+    );
+    await onboard(tester);
+    await tapText(tester, 'Me');
+
+    expect(_ringIn(tester, find.byType(MeAvatar)), StatusRing.none);
+  });
+
+  testWidgets('coming back to the Me tab fetches my statuses again', (
+    tester,
+  ) async {
+    final api = _Api();
+    await pumpOrbit(tester, overrides: api.overrides);
+    await onboard(tester);
+    await tapText(tester, 'Me');
+    int fetches() =>
+        api.calls.where((call) => call == 'GET /me/statuses').length;
+    final before = fetches();
+
+    await tapText(tester, 'Nearby');
+    await tapText(tester, 'Me');
+
+    expect(fetches(), before + 1);
+  });
+
   group('while an upload is pending', () {
     final photo = PickedMedia(bytes: plainJpeg(), contentType: 'image/jpeg');
 

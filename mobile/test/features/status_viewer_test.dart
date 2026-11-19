@@ -297,6 +297,54 @@ void main() {
     expect(harness.requests('PUT'), isEmpty);
   });
 
+  testWidgets('reopening my statuses shows viewers added since', (
+    tester,
+  ) async {
+    var viewers = [_viewer('Ann', 90)];
+    await _open(
+      tester,
+      profileId: 'me',
+      mine: () => [_mine(1, viewers: viewers)],
+    );
+    expect(find.text('👁 1'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pumpAndSettle();
+    viewers = [_viewer('Ann', 90), _viewer('Sam', 1)];
+    await tester.tap(find.text('open'));
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    expect(find.text('👁 2'), findsOneWidget);
+    await tester.tap(find.text('👁 2'));
+    await tester.pumpAndSettle();
+    expect(find.text('Sam'), findsOneWidget);
+  });
+
+  testWidgets('my expired statuses are skipped', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await _open(
+      tester,
+      profileId: 'me',
+      mine: () => [
+        _mine(2),
+        {
+          ..._mine(1),
+          'expiresAt': _now
+              .subtract(const Duration(minutes: 1))
+              .toUtc()
+              .toIso8601String(),
+        },
+      ],
+    );
+
+    expect(find.text('Mine 2'), findsOneWidget);
+    expect(find.text('Mine 1'), findsNothing);
+    expect(find.bySemanticsLabel('Status 1 of 1'), findsOneWidget);
+    semantics.dispose();
+  });
+
   testWidgets('delete own status asks first, then removes it', (tester) async {
     var statuses = [_mine(2), _mine(1)];
     final harness = await _open(
