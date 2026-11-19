@@ -122,6 +122,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                               url: p.links.url,
                               thumbUrl: p.links.thumbUrl,
                               cache: !album.viewOnce,
+                              ownerId: album.ownerId,
                             ),
                         ],
                         initialIndex: index,

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbit/core/auth/auth_repository.dart';
@@ -94,7 +95,6 @@ class SessionController {
   /// Ends the session and clears every piece of per-member state.
   Future<void> signOut() async {
     await _ref.read(authRepositoryProvider).signOut();
-    await _ref.read(orbitImageCacheProvider).clearAll();
     _ref
       ..invalidate(accountRestrictedProvider)
       ..invalidate(myProfileProvider)
@@ -111,5 +111,16 @@ class SessionController {
       ..invalidate(settingsProvider)
       ..invalidate(plusProvider)
       ..invalidate(allProfilesProvider);
+    // After the state is gone, so a cache failure cannot keep it alive.
+    try {
+      await _ref.read(orbitImageCacheProvider).clearAll();
+    } on Exception catch (error, stack) {
+      developer.log(
+        'Could not clear the image cache on sign-out',
+        name: 'orbit.session',
+        error: error,
+        stackTrace: stack,
+      );
+    }
   }
 }

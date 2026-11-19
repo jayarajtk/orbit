@@ -105,6 +105,7 @@ class _Photo extends ConsumerWidget {
                 mediaId: mediaId,
                 url: value.url,
                 thumbUrl: value.thumbUrl,
+                ownerId: profileId,
               ),
             ],
             heroTag: heroTag,

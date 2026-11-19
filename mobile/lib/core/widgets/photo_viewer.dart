@@ -15,6 +15,7 @@ class PhotoViewerItem {
     required this.url,
     this.thumbUrl,
     this.cache = true,
+    this.ownerId,
   });
 
   /// Stable media id; part of the cache key.
@@ -28,6 +29,9 @@ class PhotoViewerItem {
 
   /// Whether the image may be kept on disk.
   final bool cache;
+
+  /// Member whose cached images are evicted if they are blocked.
+  final String? ownerId;
 }
 
 // A downward drag closes the viewer past this distance or speed.
@@ -61,7 +65,10 @@ Future<void> openPhotos(
         bottomBar: bottomBar,
       ),
       transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-          FadeTransition(opacity: animation, child: child),
+          FadeTransition(
+            opacity: animation.drive(CurveTween(curve: Curves.easeOut)),
+            child: child,
+          ),
     ),
   );
 }
@@ -319,6 +326,7 @@ class _ZoomablePageState extends State<_ZoomablePage> {
       url: item.url,
       thumbUrl: item.thumbUrl,
       cache: item.cache,
+      ownerId: item.ownerId,
       fit: BoxFit.contain,
     );
     final tag = widget.heroTag;

@@ -6,10 +6,18 @@ class FakeImageCache extends OrbitImageCache {
   /// Calls in order, as `clearAll` or `evictOwner:<id>`.
   final List<String> calls = [];
 
-  @override
-  Future<void> clearAll() async => calls.add('clearAll');
+  /// Set to make every call fail after it is recorded.
+  Exception? failure;
 
   @override
-  Future<void> evictOwner(String ownerId) async =>
-      calls.add('evictOwner:$ownerId');
+  Future<void> clearAll() async {
+    calls.add('clearAll');
+    if (failure != null) throw failure!;
+  }
+
+  @override
+  Future<void> evictOwner(String ownerId) async {
+    calls.add('evictOwner:$ownerId');
+    if (failure != null) throw failure!;
+  }
 }

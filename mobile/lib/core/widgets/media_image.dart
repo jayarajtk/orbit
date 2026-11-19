@@ -150,6 +150,7 @@ class MediaImage extends ConsumerWidget {
       cacheManager: manager,
       fit: fit,
       fadeInDuration: fade,
+      fadeInCurve: Curves.easeOut,
       fadeOutDuration: Duration.zero,
       errorWidget: (context, url, error) =>
           isMain ? _failed() : const SizedBox.shrink(),

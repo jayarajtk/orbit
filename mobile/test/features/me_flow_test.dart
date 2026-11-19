@@ -188,6 +188,22 @@ void main() {
     expect(cache.calls, ['clearAll']);
   });
 
+  testWidgets('sign-out still ends the session if clearing the cache fails', (
+    tester,
+  ) async {
+    final cache = FakeImageCache()..failure = const FormatException('disk');
+    await pumpOrbit(tester, imageCache: cache);
+    await onboard(tester);
+    await tapText(tester, 'Me');
+    await tapText(tester, 'Settings & privacy');
+
+    await tester.scrollUntilVisible(find.text('Sign out'), 200);
+    await tapText(tester, 'Sign out');
+
+    expect(cache.calls, ['clearAll']);
+    expect(find.text('Meet people nearby.'), findsOneWidget);
+  });
+
   testWidgets('signing out returns to Welcome and clears state', (
     tester,
   ) async {

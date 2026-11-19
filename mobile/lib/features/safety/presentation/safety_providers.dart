@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbit/core/widgets/media_image.dart';
 import 'package:orbit/features/safety/data/safety_repository.dart';
@@ -85,7 +87,17 @@ class BlockedNotifier extends Notifier<Set<String>> {
   Future<void> _add(String id, String name) async {
     ref.read(blockedNamesProvider.notifier).put(id, name);
     state = {...state, id};
-    await ref.read(orbitImageCacheProvider).evictOwner(id);
+    // The block already succeeded; a cache failure must not look like one.
+    try {
+      await ref.read(orbitImageCacheProvider).evictOwner(id);
+    } on Exception catch (error, stack) {
+      developer.log(
+        "Could not evict a blocked member's cached images",
+        name: 'orbit.safety',
+        error: error,
+        stackTrace: stack,
+      );
+    }
   }
 }
 

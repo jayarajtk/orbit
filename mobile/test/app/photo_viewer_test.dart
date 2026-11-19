@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbit/core/widgets/media_image.dart';
@@ -26,6 +27,19 @@ class _AcceptingSafety implements SafetyRepository {
 
   @override
   Future<Map<String, String>> blocked() async => {};
+}
+
+class _RecordingManager extends CacheManager {
+  _RecordingManager() : super(Config('photo-viewer-test'));
+
+  final List<String> removed = [];
+
+  @override
+  Future<void> removeFile(String key) async => removed.add(key);
+}
+
+class _ManagedCache extends OrbitImageCache {
+  _ManagedCache(_RecordingManager manager) : super(manager: manager);
 }
 
 const _items = [
@@ -260,4 +274,66 @@ void main() {
       expect(cache.calls, ['evictOwner:p2']);
     },
   );
+
+  testWidgets('images opened in the viewer are registered to their owner', (
+    tester,
+  ) async {
+    final manager = _RecordingManager();
+    final cache = _ManagedCache(manager);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [orbitImageCacheProvider.overrideWithValue(cache)],
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: PhotoViewer(
+            items: [
+              PhotoViewerItem(
+                mediaId: 'z9',
+                url: 'https://x.test/z9',
+                ownerId: 'bob',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await cache.evictOwner('bob');
+
+    expect(manager.removed, containsAll(['z9:full', 'z9:thumb']));
+  });
+
+  test('a failing eviction does not make a successful block fail', () async {
+    final cache = FakeImageCache()..failure = const FormatException('disk');
+    final container = ProviderContainer(
+      overrides: [
+        orbitImageCacheProvider.overrideWithValue(cache),
+        safetyRepositoryProvider.overrideWithValue(_AcceptingSafety()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(blockedProvider.notifier).block('p1', name: 'Alex');
+
+    expect(container.read(blockedProvider), {'p1'});
+    expect(cache.calls, ['evictOwner:p1']);
+  });
+
+  test('a failing eviction does not make a report with block fail', () async {
+    final cache = FakeImageCache()..failure = const FormatException('disk');
+    final container = ProviderContainer(
+      overrides: [
+        orbitImageCacheProvider.overrideWithValue(cache),
+        safetyRepositoryProvider.overrideWithValue(_AcceptingSafety()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container
+        .read(blockedProvider.notifier)
+        .report('p1', ReportReason.fake, name: 'A', alsoBlock: true);
+
+    expect(container.read(blockedProvider), {'p1'});
+  });
 }
