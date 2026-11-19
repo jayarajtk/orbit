@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -179,6 +180,13 @@ Future<void> _tapLeft(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 50));
 }
 
+/// Runs the screen-reader action [label] on the status photo.
+void _semanticAction(WidgetTester tester, String label) =>
+    tester.semantics.customAction(
+      find.semantics.byLabel('Status photo'),
+      CustomSemanticsAction(label: label),
+    );
+
 final List<Map<String, Object?>> _threeStatuses = [
   _item(1),
   _item(2),
@@ -231,6 +239,58 @@ void main() {
     expect(find.text('Caption 2'), findsOneWidget);
     await _tapLeft(tester);
     expect(find.text('Caption 1'), findsOneWidget);
+  });
+
+  testWidgets('screen-reader actions go back, go next, pause and resume', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await _open(tester, theirs: _threeStatuses);
+
+    _semanticAction(tester, 'Next status');
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Caption 2'), findsOneWidget);
+    _semanticAction(tester, 'Previous status');
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Caption 1'), findsOneWidget);
+
+    _semanticAction(tester, 'Pause');
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(seconds: 10));
+    expect(find.text('Caption 1'), findsOneWidget);
+
+    // Paused at its start, the segment needs its full 5 seconds from the
+    // first frame after resuming.
+    _semanticAction(tester, 'Resume');
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Caption 2'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 50));
+    semantics.dispose();
+  });
+
+  testWidgets('a screen reader stops statuses advancing on their own', (
+    tester,
+  ) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(accessibleNavigation: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    final semantics = tester.ensureSemantics();
+    await _open(tester, theirs: _threeStatuses);
+
+    await tester.pump(const Duration(seconds: 10));
+    expect(find.text('Caption 1'), findsOneWidget);
+
+    // Paused at its start, the segment needs its full 5 seconds from the
+    // first frame after resuming.
+    _semanticAction(tester, 'Resume');
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Caption 2'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 50));
+    semantics.dispose();
   });
 
   testWidgets('holding pauses progress', (tester) async {

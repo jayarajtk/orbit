@@ -1768,6 +1768,36 @@ abstract class AppLocalizations {
   /// **'Report status'**
   String get statusReport;
 
+  /// No description provided for @statusPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Status photo'**
+  String get statusPhoto;
+
+  /// No description provided for @statusPrevious.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous status'**
+  String get statusPrevious;
+
+  /// No description provided for @statusNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Next status'**
+  String get statusNext;
+
+  /// No description provided for @statusPause.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause'**
+  String get statusPause;
+
+  /// No description provided for @statusResume.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume'**
+  String get statusResume;
+
   /// No description provided for @photoMain.
   ///
   /// In en, this message translates to:

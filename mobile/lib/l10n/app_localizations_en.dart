@@ -976,6 +976,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get statusReport => 'Report status';
 
   @override
+  String get statusPhoto => 'Status photo';
+
+  @override
+  String get statusPrevious => 'Previous status';
+
+  @override
+  String get statusNext => 'Next status';
+
+  @override
+  String get statusPause => 'Pause';
+
+  @override
+  String get statusResume => 'Resume';
+
+  @override
   String get photoMain => 'Main';
 
   @override

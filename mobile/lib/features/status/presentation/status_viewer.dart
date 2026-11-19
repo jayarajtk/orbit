@@ -4,6 +4,7 @@ import 'dart:developer' as developer;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbit/core/clock.dart';
 import 'package:orbit/core/network/api_client.dart';
@@ -226,6 +227,14 @@ class _StatusPlayerState extends ConsumerState<_StatusPlayer>
   bool _dragging = false;
   int _sheetsOpen = 0;
 
+  /// Set by the Pause and Resume screen-reader actions; null follows
+  /// [_screenReader].
+  bool? _pausedByUser;
+
+  /// A screen reader is on: statuses wait for the member instead of moving
+  /// on every 5 seconds, which is too quick to hear a status out.
+  bool _screenReader = false;
+
   final Map<int, Offset> _starts = {};
   final VelocityTracker _velocity = VelocityTracker.withKind(
     PointerDeviceKind.touch,
@@ -237,7 +246,8 @@ class _StatusPlayerState extends ConsumerState<_StatusPlayer>
 
   bool get _isMine => widget.profileId == _ownStatuses;
   _Slide get _slide => widget.slides[_index];
-  bool get _paused => _holding || _dragging || _sheetsOpen > 0;
+  bool get _heldByUser => _pausedByUser ?? _screenReader;
+  bool get _paused => _holding || _dragging || _sheetsOpen > 0 || _heldByUser;
 
   @override
   void initState() {
@@ -246,6 +256,15 @@ class _StatusPlayerState extends ConsumerState<_StatusPlayer>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _enter();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final screenReader = MediaQuery.accessibleNavigationOf(context);
+    if (screenReader == _screenReader) return;
+    _screenReader = screenReader;
+    _syncPlayback();
   }
 
   @override
@@ -397,6 +416,11 @@ class _StatusPlayerState extends ConsumerState<_StatusPlayer>
     fromStart < width / 3 ? _previous() : _next();
   }
 
+  void _togglePause() {
+    setState(() => _pausedByUser = !_heldByUser);
+    _syncPlayback();
+  }
+
   void _setHolding({required bool holding}) {
     _holding = holding;
     _syncPlayback();
@@ -517,21 +541,34 @@ class _StatusPlayerState extends ConsumerState<_StatusPlayer>
               curve: Curves.easeOut,
               builder: (context, offset, child) =>
                   Transform.translate(offset: Offset(0, offset), child: child),
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTapUp: _onTapUp,
-                onLongPressStart: (_) => _setHolding(holding: true),
-                onLongPressEnd: (_) => _setHolding(holding: false),
-                onLongPressCancel: () => _setHolding(holding: false),
-                child: MediaImage(
-                  key: ValueKey(slide.id),
-                  mediaId: slide.id,
-                  url: slide.url,
-                  thumbUrl: slide.thumbUrl,
-                  ownerId: _isMine ? null : widget.profileId,
-                  fit: BoxFit.contain,
-                  placeholder: const ColoredBox(
-                    color: Colors.black, // photo-overlay
+              // A screen reader's tap lands in the middle, which can only go
+              // forward, so it gets explicit actions instead of the taps.
+              child: Semantics(
+                label: l10n.statusPhoto,
+                customSemanticsActions: {
+                  CustomSemanticsAction(label: l10n.statusPrevious): _previous,
+                  CustomSemanticsAction(label: l10n.statusNext): _next,
+                  CustomSemanticsAction(
+                    label: _heldByUser ? l10n.statusResume : l10n.statusPause,
+                  ): _togglePause,
+                },
+                child: GestureDetector(
+                  excludeFromSemantics: true,
+                  behavior: HitTestBehavior.opaque,
+                  onTapUp: _onTapUp,
+                  onLongPressStart: (_) => _setHolding(holding: true),
+                  onLongPressEnd: (_) => _setHolding(holding: false),
+                  onLongPressCancel: () => _setHolding(holding: false),
+                  child: MediaImage(
+                    key: ValueKey(slide.id),
+                    mediaId: slide.id,
+                    url: slide.url,
+                    thumbUrl: slide.thumbUrl,
+                    ownerId: _isMine ? null : widget.profileId,
+                    fit: BoxFit.contain,
+                    placeholder: const ColoredBox(
+                      color: Colors.black, // photo-overlay
+                    ),
                   ),
                 ),
               ),
