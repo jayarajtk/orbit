@@ -14,6 +14,8 @@ import 'package:orbit/core/widgets/media_image.dart';
 import 'package:orbit/core/widgets/photo_viewer.dart';
 import 'package:orbit/features/albums/data/album_repository.dart';
 import 'package:orbit/features/albums/presentation/album_screen.dart';
+import 'package:orbit/features/albums/presentation/albums_controller.dart';
+import 'package:orbit/features/chat/presentation/wave_limit.dart';
 import 'package:orbit/features/discovery/domain/profile.dart';
 import 'package:orbit/features/media/data/media_capture.dart';
 import 'package:orbit/features/media/data/media_repository.dart';
@@ -440,6 +442,35 @@ void main() {
     await tapText(tester, 'Sign out');
 
     expect(find.text('Meet people nearby.'), findsOneWidget);
+  });
+
+  testWidgets('signing out clears wave locks and album upload tiles', (
+    tester,
+  ) async {
+    await pumpOrbit(tester);
+    await onboard(tester);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(MaterialApp)),
+    );
+    final retryAt = testNow.add(const Duration(hours: 6));
+    container.read(waveLimitProvider('p1').notifier).block(retryAt);
+    container.read(waveRefusalProvider.notifier).refusal = WaveRefusal(
+      'p1',
+      retryAt,
+    );
+    container.read(albumUploadsProvider.notifier).add('a1', [
+      AlbumUpload(localId: 'upload-0', preview: plainJpeg()),
+    ]);
+    expect(container.read(waveBlockedUntilProvider('p1')), retryAt);
+
+    await tapText(tester, 'Me');
+    await tapText(tester, 'Settings & privacy');
+    await tester.scrollUntilVisible(find.text('Sign out'), 200);
+    await tapText(tester, 'Sign out');
+
+    expect(container.read(waveBlockedUntilProvider('p1')), isNull);
+    expect(container.read(waveRefusalProvider), isNull);
+    expect(container.read(albumUploadsProvider), isEmpty);
   });
 
   test('photo list helpers', () {

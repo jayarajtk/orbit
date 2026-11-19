@@ -8,6 +8,7 @@ import 'package:orbit/core/widgets/media_image.dart';
 import 'package:orbit/features/albums/presentation/albums_controller.dart';
 import 'package:orbit/features/chat/data/chat_gateway.dart';
 import 'package:orbit/features/chat/presentation/chat_controller.dart';
+import 'package:orbit/features/chat/presentation/wave_limit.dart';
 import 'package:orbit/features/discovery/data/location_repository.dart';
 import 'package:orbit/features/discovery/presentation/discovery_providers.dart';
 import 'package:orbit/features/onboarding/presentation/onboarding_controller.dart';
@@ -103,12 +104,15 @@ class SessionController {
       ..invalidate(chatProvider)
       ..invalidate(chatGatewayProvider)
       ..invalidate(typingProvider)
+      ..invalidate(waveLimitProvider)
+      ..invalidate(waveRefusalProvider)
       ..invalidate(favoritesProvider)
       ..invalidate(blockedProvider)
       ..invalidate(blockedNamesProvider)
       ..invalidate(reportsProvider)
       ..invalidate(filtersProvider)
       ..invalidate(albumsProvider)
+      ..invalidate(albumUploadsProvider)
       ..invalidate(settingsProvider)
       ..invalidate(plusProvider)
       ..invalidate(myStatusesProvider)
