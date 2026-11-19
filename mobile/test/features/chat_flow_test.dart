@@ -383,9 +383,10 @@ Future<void> _pumpComposer(
 
 Future<void> openSamsChat(
   WidgetTester tester, {
+  DateTime? now,
   List<Override> overrides = const [],
 }) async {
-  await pumpOrbit(tester, overrides: overrides);
+  await pumpOrbit(tester, now: now, overrides: overrides);
   await onboard(tester);
   await tapText(tester, 'Inbox');
   await tapText(tester, 'Sam');
@@ -1120,10 +1121,14 @@ void main() {
   });
 
   group('photo mosaic', () {
-    Future<_FirstOfThreeFailed> openFailedFirst(WidgetTester tester) async {
+    Future<_FirstOfThreeFailed> openFailedFirst(
+      WidgetTester tester, {
+      DateTime? now,
+    }) async {
       final chat = _FirstOfThreeFailed();
       await openSamsChat(
         tester,
+        now: now,
         overrides: [chatProvider.overrideWith(() => chat)],
       );
       return chat;
@@ -1155,6 +1160,53 @@ void main() {
       expect(find.text('Not sent · Tap to retry'), findsNothing);
     });
 
+    testWidgets('photos past ten minutes are skipped and the sheet says so', (
+      tester,
+    ) async {
+      // The photos are 12, 11 and 10 minutes old at this clock.
+      final chat = await openFailedFirst(
+        tester,
+        now: testNow.add(const Duration(minutes: 7)),
+      );
+      await tester.tap(find.text('Uploading…'));
+      await tester.pumpAndSettle();
+
+      await tester.longPress(find.byType(PhotoMosaic));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Unsend 1 of 3 photos (2 are past 10 minutes)'),
+        findsOneWidget,
+      );
+      await tapText(tester, 'Unsend 1 of 3 photos (2 are past 10 minutes)');
+
+      final unsent = chat.state[dummyProfiles[1].id]!.messages.where(
+        (m) => m.unsent,
+      );
+      expect(unsent.map((m) => m.id), ['p2']);
+      expect(find.text('This message was unsent'), findsOneWidget);
+      expect(find.byType(PhotoMosaic), findsOneWidget);
+    });
+
+    testWidgets('with no photo inside ten minutes it only says so', (
+      tester,
+    ) async {
+      await openFailedFirst(
+        tester,
+        now: testNow.add(const Duration(minutes: 30)),
+      );
+      await tester.tap(find.text('Uploading…'));
+      await tester.pumpAndSettle();
+
+      await tester.longPress(find.byType(PhotoMosaic));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Messages can only be unsent within 10 minutes.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Unsend'), findsNothing);
+    });
+
     testWidgets('long-pressing a mosaic unsends every photo after asking', (
       tester,
     ) async {
@@ -1165,7 +1217,8 @@ void main() {
       await tester.longPress(find.byType(PhotoMosaic));
       await tester.pumpAndSettle();
       expect(find.byType(PhotoMosaic), findsOneWidget);
-      await tapText(tester, 'Unsend');
+      expect(find.text('Unsend 3 photos'), findsOneWidget);
+      await tapText(tester, 'Unsend 3 photos');
 
       expect(find.byType(PhotoMosaic), findsNothing);
       expect(find.text('This message was unsent'), findsNWidgets(3));

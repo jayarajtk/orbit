@@ -289,7 +289,8 @@ class _ChatViewState extends ConsumerState<_ChatView> {
   }
 
   /// Unsends [messages] (one bubble, or every photo of a mosaic) after
-  /// asking once. Messages past the unsend window are left alone.
+  /// asking once. The sheet says how many will be unsent, and how many are
+  /// left because they are past the unsend window.
   Future<void> _unsend(List<Message> messages) async {
     final l10n = AppLocalizations.of(context);
     final now = ref.read(clockProvider)();
@@ -308,7 +309,18 @@ class _ChatViewState extends ConsumerState<_ChatView> {
       builder: (context) => SafeArea(
         child: ListTile(
           leading: const Icon(Icons.undo),
-          title: Text(l10n.unsendAction),
+          title: Text(
+            switch ((messages.length, allowed.length)) {
+              (1, _) => l10n.unsendAction,
+              (final total, final count) when count == total =>
+                l10n.unsendPhotos(count),
+              (final total, final count) => l10n.unsendSomePhotos(
+                count,
+                total,
+                total - count,
+              ),
+            },
+          ),
           onTap: () => Navigator.of(context).pop(true),
         ),
       ),

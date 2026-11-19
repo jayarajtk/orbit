@@ -946,6 +946,18 @@ abstract class AppLocalizations {
   /// **'Unsend'**
   String get unsendAction;
 
+  /// No description provided for @unsendPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Unsend 1 photo} other{Unsend {count} photos}}'**
+  String unsendPhotos(int count);
+
+  /// No description provided for @unsendSomePhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsend {count} of {total} photos ({skipped, plural, =1{1 is} other{{skipped} are}} past 10 minutes)'**
+  String unsendSomePhotos(int count, int total, int skipped);
+
   /// No description provided for @unsendExpired.
   ///
   /// In en, this message translates to:

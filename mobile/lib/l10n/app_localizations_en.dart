@@ -489,6 +489,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get unsendAction => 'Unsend';
 
   @override
+  String unsendPhotos(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Unsend $count photos',
+      one: 'Unsend 1 photo',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String unsendSomePhotos(int count, int total, int skipped) {
+    String _temp0 = intl.Intl.pluralLogic(
+      skipped,
+      locale: localeName,
+      other: '$skipped are',
+      one: '1 is',
+    );
+    return 'Unsend $count of $total photos ($_temp0 past 10 minutes)';
+  }
+
+  @override
   String get unsendExpired => 'Messages can only be unsent within 10 minutes.';
 
   @override
