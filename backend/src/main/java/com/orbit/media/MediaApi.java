@@ -38,6 +38,9 @@ public interface MediaApi {
    * Deletes media for real: the stored objects (original and thumbnail) first, then the row, so a
    * failed object delete leaves the row for a retry. Media held as evidence is kept. Returns
    * whether anything was deleted; calling it again is harmless.
+   *
+   * <p>Call it outside any transaction: it claims the row first and then deletes objects, and a
+   * rollback after the object deletes would undo the claim and reopen the evidence-hold race.
    */
   boolean purge(UUID mediaId);
 

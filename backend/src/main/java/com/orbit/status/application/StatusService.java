@@ -33,6 +33,7 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -219,8 +220,16 @@ public class StatusService implements StatusApi {
     Instant now = clock.instant();
     StatusRow row = store.findLive(statusId, now).orElseThrow(StatusNotFoundException::new);
     requireVisible(me, row.ownerId());
-    if (!me.equals(row.ownerId()) && store.recordView(statusId, me, now)) {
-      viewed.increment();
+    if (me.equals(row.ownerId())) {
+      return;
+    }
+    try {
+      if (store.recordView(statusId, me, now)) {
+        viewed.increment();
+      }
+    } catch (DataIntegrityViolationException e) {
+      // The status was deleted (by the reaper or its owner) after the live check above.
+      throw new StatusNotFoundException();
     }
   }
 

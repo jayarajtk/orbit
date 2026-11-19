@@ -155,6 +155,24 @@ public class StatusStore {
   }
 
   /**
+   * Deletes up to {@code limit} statuses that expired at or before {@code now} (views cascade) and
+   * returns what was deleted.
+   */
+  public List<Expired> deleteExpired(Instant now, int limit) {
+    return jdbc.sql(
+            """
+            DELETE FROM status WHERE id IN (
+              SELECT id FROM status WHERE expires_at <= :now ORDER BY expires_at LIMIT :limit)
+            RETURNING id, media_id
+            """)
+        .param("now", utc(now))
+        .param("limit", limit)
+        .query((rs, rowNum) ->
+            new Expired(rs.getObject("id", UUID.class), rs.getObject("media_id", UUID.class)))
+        .list();
+  }
+
+  /**
    * For each owner with live statuses, whether {@code viewerId} has seen all of them. One query;
    * owners without live statuses are absent.
    */
@@ -201,4 +219,7 @@ public class StatusStore {
 
   /** One member's view of a status. */
   public record ViewRow(UUID statusId, UUID viewerId, Instant viewedAt) {}
+
+  /** A status the reaper deleted. */
+  public record Expired(UUID statusId, UUID mediaId) {}
 }

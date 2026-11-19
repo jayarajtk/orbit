@@ -2,17 +2,23 @@ package com.orbit.status;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doAnswer;
 
 import com.orbit.MutableClock;
 import com.orbit.TestcontainersConfiguration;
 import com.orbit.identity.IdentityApi;
+import com.orbit.media.MediaApi;
 import com.orbit.media.application.MediaScanner;
+import com.orbit.media.application.ObjectStorage;
 import com.orbit.shared.CountingDataSource;
 import com.orbit.shared.CountingDataSource.Counted;
 import com.orbit.status.StatusApi.StatusExpired;
 import com.orbit.status.StatusApi.StatusState;
+import com.orbit.status.application.StatusReaper;
+import com.orbit.status.infrastructure.StatusStore;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
@@ -54,6 +60,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.transaction.event.TransactionalEventListener;
 import tools.jackson.databind.JsonNode;
@@ -78,6 +85,7 @@ class StatusIntegrationTests {
   private static final Duration EVENT_WAIT = Duration.ofSeconds(5);
 
   @MockitoBean JwtDecoder jwtDecoder;
+  @MockitoSpyBean StatusStore statusStore;
 
   @Autowired RestTestClient client;
   @Autowired JdbcClient jdbc;
@@ -85,6 +93,9 @@ class StatusIntegrationTests {
   @Autowired MutableClock clock;
   @Autowired IdentityApi identity;
   @Autowired StatusApi statusApi;
+  @Autowired StatusReaper reaper;
+  @Autowired MediaApi mediaApi;
+  @Autowired ObjectStorage storage;
   @Autowired CountingDataSource dataSource;
   @Autowired MeterRegistry meters;
   @Autowired ExpiryRecorder expiries;
@@ -544,6 +555,24 @@ class StatusIntegrationTests {
     }
 
     @Test
+    void viewOfStatusDeletedMidRequestGets404() throws Exception {
+      String statusId = status("alice");
+      // The status disappears after the live check and before the view is written.
+      doAnswer(
+              call -> {
+                Object live = call.callRealMethod();
+                jdbc.sql("DELETE FROM status WHERE id = :id")
+                    .param("id", UUID.fromString(statusId))
+                    .update();
+                return live;
+              })
+          .when(statusStore)
+          .findLive(any(), any());
+
+      expectProblem(view("bob", statusId), HttpStatus.NOT_FOUND, "status-not-found");
+    }
+
+    @Test
     void viewersNewestFirstWithNames() throws Exception {
       String carolsPhoto = photo("carol", "PROFILE_PHOTO");
       put("carol", "/api/v1/me/photos", "{\"mediaIds\":[\"%s\"]}".formatted(carolsPhoto))
@@ -619,16 +648,133 @@ class StatusIntegrationTests {
               assertThat(expiries.events())
                   .containsExactly(
                       new StatusExpired(UUID.fromString(statusId), UUID.fromString(mediaId))));
+      // One publication per listener: the test recorder and the media purger.
       assertThat(
               jdbc.sql("SELECT count(*) FROM event_publication WHERE event_type = :type")
                   .param("type", StatusExpired.class.getName())
                   .query(Long.class)
                   .single())
-          .isOne();
+          .isEqualTo(2);
       expectProblem(
           delete("alice", "/api/v1/me/statuses/" + statusId),
           HttpStatus.NOT_FOUND,
           "status-not-found");
+    }
+  }
+
+  // --- reaping -------------------------------------------------------------------------------
+
+  /** The stored object key of a media row. */
+  private String storageKey(String mediaId) {
+    return jdbc.sql("SELECT storage_key FROM media WHERE id = :id")
+        .param("id", UUID.fromString(mediaId))
+        .query(String.class)
+        .single();
+  }
+
+  private long mediaRows(String mediaId) {
+    return jdbc.sql("SELECT count(*) FROM media WHERE id = :id")
+        .param("id", UUID.fromString(mediaId))
+        .query(Long.class)
+        .single();
+  }
+
+  /** Waits until every event publication has been handled. */
+  private void awaitPublicationsCompleted() {
+    await()
+        .atMost(EVENT_WAIT)
+        .untilAsserted(() ->
+            assertThat(
+                    jdbc.sql("SELECT count(*) FROM event_publication WHERE completion_date IS NULL")
+                        .query(Long.class)
+                        .single())
+                .isZero());
+  }
+
+  @Nested
+  class Reaping {
+
+    @Test
+    void reaperDeletesExpiredAndPurgesMedia() throws Exception {
+      double expiredBefore = counter("orbit.status.expired");
+      String mediaId = photo("alice", "STATUS_PHOTO");
+      String statusId =
+          body(postStatus("alice", mediaId, null).expectStatus().isCreated()).get("id").asString();
+      view("bob", statusId).expectStatus().isNoContent();
+      String key = storageKey(mediaId);
+      clock.advance(Duration.ofHours(24).plusSeconds(1));
+
+      assertThat(reaper.reap()).isOne();
+
+      assertThat(jdbc.sql("SELECT count(*) FROM status").query(Long.class).single()).isZero();
+      assertThat(jdbc.sql("SELECT count(*) FROM status_view").query(Long.class).single()).isZero();
+      assertThat(counter("orbit.status.expired")).isEqualTo(expiredBefore + 1);
+      await()
+          .atMost(EVENT_WAIT)
+          .untilAsserted(() -> {
+            assertThat(storage.size(key)).isEmpty();
+            assertThat(mediaRows(mediaId)).isZero();
+          });
+      assertThat(expiries.events())
+          .contains(new StatusExpired(UUID.fromString(statusId), UUID.fromString(mediaId)));
+      awaitPublicationsCompleted();
+    }
+
+    @Test
+    void reaperKeepsLiveStatuses() throws Exception {
+      String mediaId = photo("alice", "STATUS_PHOTO");
+      postStatus("alice", mediaId, null).expectStatus().isCreated();
+      clock.advance(Duration.ofHours(23));
+
+      assertThat(reaper.reap()).isZero();
+
+      assertThat(jdbc.sql("SELECT count(*) FROM status").query(Long.class).single()).isOne();
+      assertThat(storage.size(storageKey(mediaId))).isPresent();
+      assertThat(expiries.events()).isEmpty();
+    }
+
+    @Test
+    void reaperIsIdempotent() throws Exception {
+      status("alice");
+      clock.advance(Duration.ofHours(24).plusSeconds(1));
+
+      assertThat(reaper.reap()).isOne();
+      assertThat(reaper.reap()).isZero();
+    }
+
+    @Test
+    void reaperLoopsUntilABatchComesBackShort() throws Exception {
+      status("alice");
+      // 600 expired rows need a batch of 500 and one of 100. They share the one media row, which
+      // the reaper itself never touches.
+      jdbc.sql(
+              """
+              INSERT INTO status (id, owner_id, media_id, created_at, expires_at, updated_at)
+              SELECT gen_random_uuid(), s.owner_id, s.media_id, s.created_at, s.expires_at,
+                     s.updated_at
+              FROM status s, generate_series(1, 599)
+              """)
+          .update();
+      clock.advance(Duration.ofHours(24).plusSeconds(1));
+
+      assertThat(reaper.reap()).isEqualTo(600);
+      assertThat(jdbc.sql("SELECT count(*) FROM status").query(Long.class).single()).isZero();
+    }
+
+    @Test
+    void reaperKeepsHeldEvidenceMedia() throws Exception {
+      String mediaId = photo("alice", "STATUS_PHOTO");
+      postStatus("alice", mediaId, null).expectStatus().isCreated();
+      String key = storageKey(mediaId);
+      assertThat(mediaApi.holdAsEvidence(UUID.fromString(mediaId))).isTrue();
+      clock.advance(Duration.ofHours(24).plusSeconds(1));
+
+      assertThat(reaper.reap()).isOne();
+
+      awaitPublicationsCompleted();
+      assertThat(jdbc.sql("SELECT count(*) FROM status").query(Long.class).single()).isZero();
+      assertThat(storage.size(key)).isPresent();
+      assertThat(mediaRows(mediaId)).isOne();
     }
   }
 }
