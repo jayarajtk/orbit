@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:orbit/app/router.dart';
 import 'package:orbit/core/network/api_client.dart';
 import 'package:orbit/features/discovery/domain/profile.dart';
 import 'package:orbit/features/media/data/media_capture.dart';
-import 'package:orbit/features/media/data/media_repository.dart';
-import 'package:orbit/features/media/domain/media.dart';
-import 'package:orbit/features/profile/data/account_repository.dart';
+import 'package:orbit/features/profile/presentation/my_photos_actions.dart';
 import 'package:orbit/features/profile/presentation/my_profile_controller.dart';
 import 'package:orbit/l10n/app_localizations.dart';
 
-/// The member's public photos: add from the library, remove. Changes are
+/// The member's public photos: add from the library, remove, reorder (the
+/// first is the main photo), tap to open. Changes are
 /// saved at once (separately from the profile form). Shown only when there
 /// is a server to upload to.
 class PhotoEditor extends ConsumerStatefulWidget {
@@ -26,38 +27,27 @@ class PhotoEditor extends ConsumerStatefulWidget {
 class _PhotoEditorState extends ConsumerState<PhotoEditor> {
   bool _busy = false;
 
-  List<ProfilePhoto> get _photos => ref.read(myProfileProvider)?.photos ?? [];
-
   Future<void> _add() async {
     final picked = await ref.read(mediaPickerProvider).pickPhoto(camera: false);
     if (picked == null || !mounted) return;
-    await _run(() async {
-      final media = ref.read(mediaRepositoryProvider)!;
-      final uploaded = await media.upload(
-        MediaPurpose.profilePhoto,
-        picked.bytes,
-        picked.contentType,
-      );
-      return [for (final p in _photos) p.id, uploaded.id];
-    });
+    await _run(() => ref.read(myPhotosActionsProvider).add(picked));
   }
 
-  Future<void> _remove(ProfilePhoto photo) => _run(
-    () async => [
-      for (final p in _photos)
-        if (p.id != photo.id) p.id,
-    ],
-  );
+  Future<void> _remove(ProfilePhoto photo) =>
+      _run(() => ref.read(myPhotosActionsProvider).delete(photo.id));
 
-  /// Runs [change] to get the new photo order, then saves it.
-  Future<void> _run(Future<List<String>> Function() change) async {
+  Future<void> _reorder(int from, int to) =>
+      _run(() => ref.read(myPhotosActionsProvider).reorder(from, to));
+
+  void _open(int index) => context.push('${AppRoutes.myPhotos}?index=$index');
+
+  /// Runs [change], showing a snackbar if the server refuses it.
+  Future<void> _run(Future<void> Function() change) async {
     final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _busy = true);
     try {
-      final ids = await change();
-      final saved = await ref.read(accountRepositoryProvider).setPhotos(ids);
-      ref.read(myProfileProvider.notifier).save(saved);
+      await change();
     } on ApiException catch (e) {
       messenger.showSnackBar(
         SnackBar(
@@ -90,7 +80,17 @@ class _PhotoEditorState extends ConsumerState<PhotoEditor> {
           mainAxisSpacing: 8,
           crossAxisSpacing: 8,
           children: [
-            for (final photo in photos) _PhotoTile(photo, onRemove: _remove),
+            for (final (index, photo) in photos.indexed)
+              _PhotoTile(
+                key: ValueKey(photo.id),
+                photo: photo,
+                index: index,
+                total: photos.length,
+                enabled: !_busy,
+                onOpen: _open,
+                onRemove: _remove,
+                onMove: _reorder,
+              ),
             if (photos.length < PhotoEditor.maxPhotos)
               _AddTile(busy: _busy, onAdd: _add),
           ],
@@ -100,38 +100,132 @@ class _PhotoEditorState extends ConsumerState<PhotoEditor> {
   }
 }
 
+/// A photo in the grid: tap opens it, press and hold then drag onto another
+/// photo moves it there.
 class _PhotoTile extends StatelessWidget {
-  const _PhotoTile(this.photo, {required this.onRemove});
+  const _PhotoTile({
+    required this.photo,
+    required this.index,
+    required this.total,
+    required this.enabled,
+    required this.onOpen,
+    required this.onRemove,
+    required this.onMove,
+    super.key,
+  });
 
   final ProfilePhoto photo;
+  final int index;
+  final int total;
+  final bool enabled;
+  final void Function(int index) onOpen;
   final Future<void> Function(ProfilePhoto) onRemove;
+  final Future<void> Function(int from, int to) onMove;
+
+  bool get _isMain => index == 0;
+
+  Widget _image() => ClipRRect(
+    borderRadius: BorderRadius.circular(12),
+    child: Image.network(
+      photo.thumbUrl ?? photo.url,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) =>
+          const ColoredBox(color: Colors.black12),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Image.network(
-            photo.thumbUrl ?? photo.url,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) =>
-                const ColoredBox(color: Colors.black12),
-          ),
-        ),
-        Positioned(
-          top: 4,
-          right: 4,
-          child: IconButton.filledTonal(
-            tooltip: l10n.removePhoto,
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.close, size: 18),
-            onPressed: () => onRemove(photo),
-          ),
-        ),
-      ],
+    final theme = Theme.of(context);
+    final label = _isMain
+        ? l10n.photoTileMain(index + 1, total)
+        : l10n.photoOf(index + 1, total);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tile = SizedBox.fromSize(
+          size: constraints.biggest,
+          child: _image(),
+        );
+        return DragTarget<int>(
+          onWillAcceptWithDetails: (details) =>
+              enabled && details.data != index,
+          onAcceptWithDetails: (details) => onMove(details.data, index),
+          builder: (context, candidates, rejected) {
+            final hovered = candidates.isNotEmpty;
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                Semantics(
+                  container: true,
+                  button: true,
+                  label: label,
+                  hint: l10n.photoReorderHint,
+                  onTap: () => onOpen(index),
+                  child: LongPressDraggable<int>(
+                    data: index,
+                    maxSimultaneousDrags: enabled ? 1 : 0,
+                    feedback: Opacity(opacity: 0.85, child: tile),
+                    childWhenDragging: Opacity(opacity: 0.3, child: tile),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => onOpen(index),
+                      child: DecoratedBox(
+                        position: DecorationPosition.foreground,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: hovered
+                              ? Border.all(
+                                  color: theme.colorScheme.primary,
+                                  width: 3,
+                                )
+                              : null,
+                        ),
+                        child: _image(),
+                      ),
+                    ),
+                  ),
+                ),
+                if (_isMain)
+                  Positioned(
+                    left: 4,
+                    bottom: 4,
+                    child: ExcludeSemantics(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          child: Text(
+                            l10n.photoMain,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: IconButton.filledTonal(
+                    tooltip: l10n.removePhoto,
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: enabled ? () => onRemove(photo) : null,
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -160,7 +254,7 @@ class _AddTile extends StatelessWidget {
                   children: [
                     const Icon(Icons.add_a_photo_outlined),
                     const SizedBox(height: 4),
-                    Text(l10n.addPhoto),
+                    Text(l10n.photoAdd),
                   ],
                 ),
         ),

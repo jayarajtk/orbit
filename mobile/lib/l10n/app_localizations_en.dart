@@ -864,6 +864,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String get removePhoto => 'Remove photo';
 
   @override
+  String get photoAdd => 'Add photo';
+
+  @override
+  String get photoMain => 'Main';
+
+  @override
+  String get photoMakeMain => 'Make main photo';
+
+  @override
+  String get photoReplace => 'Replace photo';
+
+  @override
+  String get photoDelete => 'Delete photo';
+
+  @override
+  String get photoDeleteConfirm => 'Delete this photo?';
+
+  @override
+  String get photoDeleteLastWarning =>
+      'This is your only photo. Without one, your profile won\'t show a picture.';
+
+  @override
+  String photoTileMain(int current, int total) {
+    return 'Photo $current of $total, main photo';
+  }
+
+  @override
+  String get photoReorderHint =>
+      'Tap to open. Press and hold, then drag to reorder.';
+
+  @override
   String get uploadFailed => 'That file couldn\'t be used. Try another one.';
 
   @override

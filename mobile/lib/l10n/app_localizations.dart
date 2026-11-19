@@ -1612,6 +1612,60 @@ abstract class AppLocalizations {
   /// **'Remove photo'**
   String get removePhoto;
 
+  /// No description provided for @photoAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add photo'**
+  String get photoAdd;
+
+  /// No description provided for @photoMain.
+  ///
+  /// In en, this message translates to:
+  /// **'Main'**
+  String get photoMain;
+
+  /// No description provided for @photoMakeMain.
+  ///
+  /// In en, this message translates to:
+  /// **'Make main photo'**
+  String get photoMakeMain;
+
+  /// No description provided for @photoReplace.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace photo'**
+  String get photoReplace;
+
+  /// No description provided for @photoDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete photo'**
+  String get photoDelete;
+
+  /// No description provided for @photoDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this photo?'**
+  String get photoDeleteConfirm;
+
+  /// No description provided for @photoDeleteLastWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This is your only photo. Without one, your profile won\'t show a picture.'**
+  String get photoDeleteLastWarning;
+
+  /// No description provided for @photoTileMain.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo {current} of {total}, main photo'**
+  String photoTileMain(int current, int total);
+
+  /// No description provided for @photoReorderHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to open. Press and hold, then drag to reorder.'**
+  String get photoReorderHint;
+
   /// No description provided for @uploadFailed.
   ///
   /// In en, this message translates to:

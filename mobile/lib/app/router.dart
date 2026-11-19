@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:orbit/app/home_shell.dart';
@@ -52,6 +53,10 @@ abstract final class AppRoutes {
 
   /// W14 Edit profile.
   static const editProfile = '/me/edit';
+
+  /// The member's own photos, full screen. Query parameter `index` is the
+  /// photo to open on.
+  static const myPhotos = '/me/photos';
 
   /// My albums.
   static const myAlbums = '/me/albums';
@@ -188,6 +193,12 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'edit',
                     builder: (context, state) => const EditProfileScreen(),
+                  ),
+                  GoRoute(
+                    path: 'photos',
+                    // Placeholder until the full-screen viewer replaces it.
+                    builder: (context, state) =>
+                        const Scaffold(body: SizedBox.shrink()),
                   ),
                   GoRoute(
                     path: 'albums',
