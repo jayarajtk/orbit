@@ -33,8 +33,12 @@ public interface MediaApi {
    */
   boolean purge(UUID mediaId);
 
-  /** Keeps media from ever being purged, because it is evidence in a report. Idempotent. */
-  void holdAsEvidence(UUID mediaId);
+  /**
+   * Keeps media from ever being purged, because it is evidence in a report. Safe to repeat. Returns
+   * whether the media is now held and its stored objects still exist; false when there is no such
+   * media or a purge already claimed it, so the caller knows the evidence is gone.
+   */
+  boolean holdAsEvidence(UUID mediaId);
 
   /**
    * The name of {@code ownerId}'s album {@code albumId}.

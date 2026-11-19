@@ -135,22 +135,40 @@ public class MediaStore {
         == 1;
   }
 
-  /** Keeps the row from being deleted by {@link #deleteUnlessHeld}. Safe to repeat. */
-  public void markHeld(UUID id, Instant now) {
-    jdbc.sql(
-            "UPDATE media SET evidence_hold = TRUE, updated_at = :now"
-                + " WHERE id = :id AND NOT evidence_hold")
-        .param("id", id)
-        .param("now", utc(now))
-        .update();
-  }
-
-  /** Deletes the row unless it is held as evidence; returns whether it was deleted. */
-  public boolean deleteUnlessHeld(UUID id) {
-    return jdbc.sql("DELETE FROM media WHERE id = :id AND NOT evidence_hold")
+  /**
+   * Holds the row as evidence. Returns false when there is no such row or a purge already claimed
+   * it (its objects are going or gone); true also for a row that was already held.
+   */
+  public boolean markHeld(UUID id, Instant now) {
+    return jdbc.sql(
+                "UPDATE media SET evidence_hold = TRUE, updated_at = :now"
+                    + " WHERE id = :id AND status <> 'PURGING'")
             .param("id", id)
+            .param("now", utc(now))
             .update()
         == 1;
+  }
+
+  /**
+   * Claims the row for purging unless it is held; rows already claimed are claimed again so a retry
+   * can finish. Returns the keys of the stored objects, or empty if there is nothing to purge.
+   */
+  public Optional<StoredKeys> claimForPurge(UUID id, Instant now) {
+    return jdbc.sql(
+            """
+            UPDATE media SET status = 'PURGING', updated_at = :now
+            WHERE id = :id AND NOT evidence_hold
+            RETURNING storage_key, thumb_key
+            """)
+        .param("id", id)
+        .param("now", utc(now))
+        .query((rs, row) -> new StoredKeys(rs.getString("storage_key"), rs.getString("thumb_key")))
+        .optional();
+  }
+
+  /** Deletes a row after its objects are gone. */
+  public void delete(UUID id) {
+    jdbc.sql("DELETE FROM media WHERE id = :id").param("id", id).update();
   }
 
   private static OffsetDateTime utc(Instant instant) {
@@ -182,8 +200,13 @@ public class MediaStore {
     READY,
     REJECTED,
     /** Taken down by a moderator (ADR-0007). */
-    REMOVED
+    REMOVED,
+    /** Claimed by a purge: its objects are being deleted and nothing may use it. */
+    PURGING
   }
+
+  /** Where a media row's objects are stored; {@code thumbKey} is null without a thumbnail. */
+  public record StoredKeys(String storageKey, String thumbKey) {}
 
   /** A media row. */
   public record MediaRow(

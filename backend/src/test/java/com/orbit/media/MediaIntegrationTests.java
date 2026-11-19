@@ -3,6 +3,7 @@ package com.orbit.media;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doAnswer;
 
 import com.orbit.MutableClock;
 import com.orbit.TestcontainersConfiguration;
@@ -40,6 +41,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
@@ -64,7 +66,7 @@ class MediaIntegrationTests {
   @Autowired MutableClock clock;
   @Autowired AtomicReference<MediaScanner.Verdict> verdict;
   @Autowired MediaApi mediaApi;
-  @Autowired ObjectStorage storage;
+  @MockitoSpyBean ObjectStorage storage;
 
   private final HttpClient http = HttpClient.newHttpClient();
   private final Map<String, String> ids = new HashMap<>();
@@ -285,8 +287,8 @@ class MediaIntegrationTests {
       UUID mediaId = UUID.fromString(id);
       String full = key("storage_key", id);
 
-      mediaApi.holdAsEvidence(mediaId);
-      mediaApi.holdAsEvidence(mediaId);
+      assertThat(mediaApi.holdAsEvidence(mediaId)).isTrue();
+      assertThat(mediaApi.holdAsEvidence(mediaId)).isTrue();
 
       assertThat(mediaApi.purge(mediaId)).isFalse();
       assertThat(stored(full)).isTrue();
@@ -300,6 +302,34 @@ class MediaIntegrationTests {
 
       assertThat(mediaApi.purge(mediaId)).isTrue();
       assertThat(mediaApi.purge(mediaId)).isFalse();
+    }
+
+    @Test
+    void aHoldThatLandsMidPurgeIsRefusedSoTheCallerKnows() throws Exception {
+      String id = photo("alice", "STATUS_PHOTO");
+      UUID mediaId = UUID.fromString(id);
+      String full = key("storage_key", id);
+      String thumb = key("thumb_key", id);
+      AtomicReference<Boolean> heldMidPurge = new AtomicReference<>();
+      doAnswer(
+              call -> {
+                heldMidPurge.compareAndSet(null, mediaApi.holdAsEvidence(mediaId));
+                return call.callRealMethod();
+              })
+          .when(storage)
+          .delete(anyString());
+
+      assertThat(mediaApi.purge(mediaId)).isTrue();
+
+      assertThat(heldMidPurge.get()).isFalse();
+      assertThat(stored(full)).isFalse();
+      assertThat(stored(thumb)).isFalse();
+      assertThat(mediaApi.holdAsEvidence(mediaId)).isFalse();
+    }
+
+    @Test
+    void holdingMissingMediaReportsFalse() {
+      assertThat(mediaApi.holdAsEvidence(UUID.randomUUID())).isFalse();
     }
 
     @Test

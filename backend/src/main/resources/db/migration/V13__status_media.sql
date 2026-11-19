@@ -8,3 +8,10 @@ ALTER TABLE media DROP CONSTRAINT media_purpose_ck;
 ALTER TABLE media
     ADD CONSTRAINT media_purpose_ck CHECK (purpose IN
         ('PROFILE_PHOTO', 'ALBUM_PHOTO', 'CHAT_PHOTO', 'CHAT_VIDEO', 'VOICE_NOTE', 'STATUS_PHOTO'));
+
+-- A purge claims the row first, so a hold that arrives mid-purge is refused instead of
+-- silently protecting a row whose objects are already gone.
+ALTER TABLE media DROP CONSTRAINT media_status_ck;
+ALTER TABLE media
+    ADD CONSTRAINT media_status_ck CHECK (status IN
+        ('PENDING', 'READY', 'REJECTED', 'REMOVED', 'PURGING'));

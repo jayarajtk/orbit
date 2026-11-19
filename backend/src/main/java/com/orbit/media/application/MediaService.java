@@ -11,6 +11,7 @@ import com.orbit.media.infrastructure.MediaProperties;
 import com.orbit.media.infrastructure.MediaStore;
 import com.orbit.media.infrastructure.MediaStore.MediaRow;
 import com.orbit.media.infrastructure.MediaStore.Status;
+import com.orbit.media.infrastructure.MediaStore.StoredKeys;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
@@ -118,6 +119,7 @@ public class MediaService implements MediaApi {
         return view(row);
       }
       case REJECTED -> throw new MediaRejectedException();
+      case PURGING -> throw new MediaNotFoundException();
       case PENDING -> {
         // Processed below.
       }
@@ -247,21 +249,23 @@ public class MediaService implements MediaApi {
 
   @Override
   public boolean purge(UUID mediaId) {
-    MediaRow row = store.find(mediaId).orElse(null);
-    if (row == null || row.evidenceHold()) {
+    StoredKeys keys = store.claimForPurge(mediaId, clock.instant()).orElse(null);
+    if (keys == null) {
       return false;
     }
-    // Objects first: if a delete fails the row stays, so a retry still finds what to delete.
-    storage.delete(row.storageKey());
-    if (row.thumbKey() != null) {
-      storage.delete(row.thumbKey());
+    log.info("Purging media {}", mediaId);
+    // Objects first: if a delete fails the claimed row stays, so a retry finishes the job.
+    storage.delete(keys.storageKey());
+    if (keys.thumbKey() != null) {
+      storage.delete(keys.thumbKey());
     }
-    return store.deleteUnlessHeld(mediaId);
+    store.delete(mediaId);
+    return true;
   }
 
   @Override
-  public void holdAsEvidence(UUID mediaId) {
-    store.markHeld(mediaId, clock.instant());
+  public boolean holdAsEvidence(UUID mediaId) {
+    return store.markHeld(mediaId, clock.instant());
   }
 
   @Override
