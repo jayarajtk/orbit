@@ -370,7 +370,10 @@ void main() {
     );
 
     expect(_tick('Read'), findsNothing);
-    expect(tester.widget<Icon>(_tick('Delivered')).color, _tokens.textMuted);
+    expect(
+      tester.widget<Icon>(_tick('Delivered')).color,
+      _tokens.onBubbleMuted(_tokens.ownBubble),
+    );
   });
 
   testWidgets('pending shows a clock and sent shows one tick', (tester) async {

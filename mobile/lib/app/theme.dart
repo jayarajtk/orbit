@@ -103,6 +103,16 @@ class OrbitTokens extends ThemeExtension<OrbitTokens> {
   /// Text colour on [avatarGradients].
   final Color onAvatar;
 
+  /// Fill of the member's own chat bubbles: a light wash of [accent] over
+  /// [surface], so accent ticks stay visible on it.
+  Color get ownBubble =>
+      Color.alphaBlend(accent.withValues(alpha: 0.06), surface);
+
+  /// Time and sent/delivered tick colour on a bubble filled with [bubble]:
+  /// [text] at reduced strength, which clears AA on both bubble fills.
+  Color onBubbleMuted(Color bubble) =>
+      Color.alphaBlend(text.withValues(alpha: 0.7), bubble);
+
   @override
   OrbitTokens copyWith({
     Color? ground,

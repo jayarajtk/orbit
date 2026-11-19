@@ -81,6 +81,33 @@ void main() {
         });
       }
 
+      group('chat bubble pairs', () {
+        final own = t.ownBubble;
+        final incoming = t.surface;
+
+        test('time text on own and incoming bubbles', () {
+          expect(
+            contrastRatio(t.onBubbleMuted(own), own),
+            greaterThanOrEqualTo(4.5),
+          );
+          expect(
+            contrastRatio(t.onBubbleMuted(incoming), incoming),
+            greaterThanOrEqualTo(4.5),
+          );
+        });
+
+        test('sent and delivered ticks on own bubbles', () {
+          expect(
+            contrastRatio(t.onBubbleMuted(own), own),
+            greaterThanOrEqualTo(3.0),
+          );
+        });
+
+        test('accent read ticks on own bubbles have real margin', () {
+          expect(contrastRatio(t.accent, own), greaterThanOrEqualTo(3.3));
+        });
+      });
+
       test('initial text on every avatar gradient stop', () {
         for (final (start, end) in t.avatarGradients) {
           expect(contrastRatio(t.onAvatar, start), greaterThanOrEqualTo(4.5));

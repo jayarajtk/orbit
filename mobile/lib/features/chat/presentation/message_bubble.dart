@@ -56,13 +56,7 @@ class MessageBubble extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final tokens = context.tokens;
     final mine = message.fromMe;
-    // Own bubbles are a light wash of the accent so accent ticks stay visible.
-    final background = mine
-        ? Color.alphaBlend(
-            tokens.accent.withValues(alpha: 0.16),
-            tokens.surface,
-          )
-        : tokens.surface;
+    final background = mine ? tokens.ownBubble : tokens.surface;
     final foreground = tokens.text;
     final failed = message.status == DeliveryStatus.failed;
 
@@ -185,7 +179,9 @@ class _TimeAndTicks extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final tokens = context.tokens;
-    final muted = tokens.textMuted;
+    final muted = tokens.onBubbleMuted(
+      message.fromMe ? tokens.ownBubble : tokens.surface,
+    );
     final tick = message.fromMe && !message.unsent
         ? switch (message.status) {
             DeliveryStatus.pending => Icon(
