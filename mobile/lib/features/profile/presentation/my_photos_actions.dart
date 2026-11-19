@@ -1,10 +1,15 @@
+import 'dart:developer';
+
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:orbit/core/network/api_client.dart';
 import 'package:orbit/features/discovery/domain/profile.dart';
 import 'package:orbit/features/media/data/media_capture.dart';
 import 'package:orbit/features/media/data/media_repository.dart';
 import 'package:orbit/features/media/domain/media.dart';
 import 'package:orbit/features/profile/data/account_repository.dart';
 import 'package:orbit/features/profile/presentation/my_profile_controller.dart';
+import 'package:orbit/l10n/app_localizations.dart';
 
 /// [ids] with the photo at [from] moved so it ends at index [to].
 List<String> movePhoto(List<String> ids, int from, int to) {
@@ -88,3 +93,30 @@ class MyPhotosActions {
 
 /// The shared photo actions.
 final myPhotosActionsProvider = Provider<MyPhotosActions>(MyPhotosActions.new);
+
+/// Runs [action] and, if it fails, tells the member with a snackbar: a file
+/// the server could not use (422) says so; anything else is a general
+/// failure. Returns whether [action] succeeded.
+Future<bool> runPhotoAction(
+  BuildContext context,
+  Future<void> Function() action,
+) async {
+  final l10n = AppLocalizations.of(context);
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    await action();
+    return true;
+  } on ApiException catch (e) {
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(e.status == 422 ? l10n.uploadFailed : l10n.actionFailed),
+      ),
+    );
+  } on Object catch (e, stack) {
+    // Not an API refusal (for example no media service): the member only
+    // needs to know it failed; the cause goes to the developer log.
+    log('Photo action failed', error: e, stackTrace: stack);
+    messenger.showSnackBar(SnackBar(content: Text(l10n.actionFailed)));
+  }
+  return false;
+}

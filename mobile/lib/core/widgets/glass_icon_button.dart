@@ -20,8 +20,8 @@ class GlassIconButton extends StatelessWidget {
   /// The tooltip, also used as the accessibility label.
   final String tooltip;
 
-  /// Called when the button is tapped.
-  final VoidCallback onPressed;
+  /// Called when the button is tapped; the button is disabled when null.
+  final VoidCallback? onPressed;
 
   /// Whether the button shows its on state.
   final bool selected;

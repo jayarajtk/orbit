@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:orbit/app/router.dart';
-import 'package:orbit/core/network/api_client.dart';
 import 'package:orbit/core/widgets/profile_avatar.dart';
 import 'package:orbit/features/media/data/media_capture.dart';
 import 'package:orbit/features/plus/presentation/plus_controller.dart';
@@ -128,21 +127,12 @@ class MeAvatar extends ConsumerWidget {
   static const _badge = 32.0;
 
   Future<void> _addFirstPhoto(BuildContext context, WidgetRef ref) async {
-    final l10n = AppLocalizations.of(context);
-    final messenger = ScaffoldMessenger.of(context);
     final picked = await ref.read(mediaPickerProvider).pickPhoto(camera: false);
-    if (picked == null) return;
-    try {
-      await ref.read(myPhotosActionsProvider).add(picked);
-    } on ApiException catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            e.status == 422 ? l10n.uploadFailed : l10n.actionFailed,
-          ),
-        ),
-      );
-    }
+    if (picked == null || !context.mounted) return;
+    await runPhotoAction(
+      context,
+      () => ref.read(myPhotosActionsProvider).add(picked),
+    );
   }
 
   @override

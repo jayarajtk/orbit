@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:orbit/core/network/api_client.dart';
 import 'package:orbit/core/widgets/glass_icon_button.dart';
 import 'package:orbit/core/widgets/photo_viewer.dart';
 import 'package:orbit/features/discovery/domain/profile.dart';
@@ -44,25 +43,12 @@ class _MyPhotosViewerState extends ConsumerState<MyPhotosViewer> {
     Future<void> Function() change,
     int Function(int count) pageAfter,
   ) async {
-    final l10n = AppLocalizations.of(context);
-    final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     setState(() => _busy = true);
-    try {
-      await change();
-    } on ApiException catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            e.status == 422 ? l10n.uploadFailed : l10n.actionFailed,
-          ),
-        ),
-      );
-      return;
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    final saved = await runPhotoAction(context, change);
     if (!mounted) return;
+    setState(() => _busy = false);
+    if (!saved) return;
     final count = ref.read(myProfileProvider)?.photos.length ?? 0;
     if (count == 0) {
       navigator.pop();
@@ -71,8 +57,21 @@ class _MyPhotosViewerState extends ConsumerState<MyPhotosViewer> {
     _showPage(pageAfter(count));
   }
 
+  bool _picking = false;
+
+  /// Opens the picker unless it is already open (a double tap).
+  Future<PickedMedia?> _pick() async {
+    if (_picking) return null;
+    _picking = true;
+    try {
+      return await ref.read(mediaPickerProvider).pickPhoto(camera: false);
+    } finally {
+      _picking = false;
+    }
+  }
+
   Future<void> _add() async {
-    final picked = await ref.read(mediaPickerProvider).pickPhoto(camera: false);
+    final picked = await _pick();
     if (picked == null || !mounted) return;
     await _run(
       () => ref.read(myPhotosActionsProvider).add(picked),
@@ -81,7 +80,7 @@ class _MyPhotosViewerState extends ConsumerState<MyPhotosViewer> {
   }
 
   Future<void> _replace(ProfilePhoto photo, int index) async {
-    final picked = await ref.read(mediaPickerProvider).pickPhoto(camera: false);
+    final picked = await _pick();
     if (picked == null || !mounted) return;
     await _run(
       () => ref.read(myPhotosActionsProvider).replace(photo.id, picked),
@@ -123,23 +122,25 @@ class _MyPhotosViewerState extends ConsumerState<MyPhotosViewer> {
             GlassIconButton(
               icon: Icons.add_a_photo_outlined,
               tooltip: l10n.photoAdd,
-              onPressed: _add,
+              onPressed: _busy ? null : _add,
             ),
           GlassIconButton(
             icon: Icons.swap_horiz,
             tooltip: l10n.photoReplace,
-            onPressed: () => _replace(photo, index),
+            onPressed: _busy ? null : () => _replace(photo, index),
           ),
           if (index > 0)
             GlassIconButton(
               icon: Icons.star_outline,
               tooltip: l10n.photoMakeMain,
-              onPressed: () => _makeMain(photo),
+              onPressed: _busy ? null : () => _makeMain(photo),
             ),
           GlassIconButton(
             icon: Icons.delete_outline,
             tooltip: l10n.photoDelete,
-            onPressed: () => _delete(photo, index, photos.length),
+            onPressed: _busy
+                ? null
+                : () => _delete(photo, index, photos.length),
           ),
         ],
       ),
@@ -150,33 +151,20 @@ class _MyPhotosViewerState extends ConsumerState<MyPhotosViewer> {
   Widget build(BuildContext context) {
     final photos = ref.watch(myProfileProvider.select((p) => p?.photos ?? []));
     if (photos.isEmpty) return const Scaffold(backgroundColor: Colors.black);
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        PhotoViewer(
-          key: ValueKey(_generation),
-          items: [
-            for (final photo in photos)
-              PhotoViewerItem(
-                mediaId: photo.id,
-                url: photo.url,
-                thumbUrl: photo.thumbUrl,
-              ),
-          ],
-          initialIndex: _start.clamp(0, photos.length - 1),
-          heroTag: _generation == 0 && _start == 0 ? myMainPhotoHeroTag : null,
-          bottomBar: (context, index) => _bottomBar(context, index, photos),
-        ),
-        if (_busy)
-          const Positioned.fill(
-            child: AbsorbPointer(
-              child: ColoredBox(
-                color: Colors.black38, // photo-overlay
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            ),
+    return PhotoViewer(
+      key: ValueKey(_generation),
+      busy: _busy,
+      items: [
+        for (final photo in photos)
+          PhotoViewerItem(
+            mediaId: photo.id,
+            url: photo.url,
+            thumbUrl: photo.thumbUrl,
           ),
       ],
+      initialIndex: _start.clamp(0, photos.length - 1),
+      heroTag: _generation == 0 && _start == 0 ? myMainPhotoHeroTag : null,
+      bottomBar: (context, index) => _bottomBar(context, index, photos),
     );
   }
 }

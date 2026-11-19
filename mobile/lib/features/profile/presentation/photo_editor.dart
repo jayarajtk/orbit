@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:orbit/app/router.dart';
-import 'package:orbit/core/network/api_client.dart';
 import 'package:orbit/features/discovery/domain/profile.dart';
 import 'package:orbit/features/media/data/media_capture.dart';
 import 'package:orbit/features/profile/presentation/my_photos_actions.dart';
@@ -41,21 +40,11 @@ class _PhotoEditorState extends ConsumerState<PhotoEditor> {
 
   void _open(int index) => context.push('${AppRoutes.myPhotos}?index=$index');
 
-  /// Runs [change], showing a snackbar if the server refuses it.
+  /// Runs [change] with the buttons disabled; a refusal shows a snackbar.
   Future<void> _run(Future<void> Function() change) async {
-    final l10n = AppLocalizations.of(context);
-    final messenger = ScaffoldMessenger.of(context);
     setState(() => _busy = true);
     try {
-      await change();
-    } on ApiException catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            e.status == 422 ? l10n.uploadFailed : l10n.actionFailed,
-          ),
-        ),
-      );
+      await runPhotoAction(context, change);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

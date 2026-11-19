@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
@@ -51,6 +52,18 @@ class _NoUploads implements MediaRepository {
     String contentType, {
     int? durationMs,
   }) => throw StateError('no upload expected');
+}
+
+class _PendingUploads implements MediaRepository {
+  final Completer<UploadedMedia> result = Completer();
+
+  @override
+  Future<UploadedMedia> upload(
+    MediaPurpose purpose,
+    Uint8List bytes,
+    String contentType, {
+    int? durationMs,
+  }) => result.future;
 }
 
 class _RefusedUploads implements MediaRepository {
@@ -431,5 +444,44 @@ void main() {
     expect(adapter.requests.where((r) => r.method == 'PUT'), isEmpty);
     final photos = _container(tester).read(myProfileProvider)!.photos;
     expect([for (final p in photos) p.id], ['a', 'b']);
+  });
+
+  testWidgets('while an action runs the page shows progress and locks', (
+    tester,
+  ) async {
+    final uploads = _PendingUploads();
+    final picker = _CountingPicker(
+      result: PickedMedia(bytes: Uint8List(3), contentType: 'image/jpeg'),
+    );
+    await pumpOrbit(
+      tester,
+      overrides: _photoOverrides(_photosApi(), picker, uploads: uploads),
+    );
+    await _openMyPhotos(tester, ['a', 'b']);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+
+    await tester.tap(find.byTooltip('Replace photo'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('1 / 2'), findsOneWidget);
+    for (final icon in [Icons.swap_horiz, Icons.delete_outline]) {
+      final button = tester.widget<IconButton>(
+        find.widgetWithIcon(IconButton, icon),
+      );
+      expect(button.onPressed, isNull);
+    }
+    final pager = tester.widget<PageView>(find.byType(PageView));
+    expect(pager.physics, isA<NeverScrollableScrollPhysics>());
+
+    uploads.result.completeError(const ApiException(status: 500, type: 'x'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    final again = tester.widget<IconButton>(
+      find.widgetWithIcon(IconButton, Icons.delete_outline),
+    );
+    expect(again.onPressed, isNotNull);
   });
 }

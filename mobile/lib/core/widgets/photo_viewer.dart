@@ -81,6 +81,7 @@ class PhotoViewer extends ConsumerStatefulWidget {
     this.initialIndex = 0,
     this.heroTag,
     this.bottomBar,
+    this.busy = false,
     super.key,
   });
 
@@ -95,6 +96,10 @@ class PhotoViewer extends ConsumerStatefulWidget {
 
   /// Builds a bar under the photo at the given index.
   final Widget Function(BuildContext, int index)? bottomBar;
+
+  /// Whether the current photo is being changed: shows a progress indicator
+  /// over it and stops paging and drag-to-close until it is done.
+  final bool busy;
 
   @override
   ConsumerState<PhotoViewer> createState() => _PhotoViewerState();
@@ -153,7 +158,7 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
   }
 
   void _onPointerMove(PointerMoveEvent event) {
-    if (_starts.length != 1 || _zoomed) return;
+    if (_starts.length != 1 || _zoomed || widget.busy) return;
     _velocity.addPosition(event.timeStamp, event.position);
     if (!_dragging) {
       final moved = event.position - _starts[event.pointer]!;
@@ -210,7 +215,7 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
                 child: PageView.builder(
                   controller: _pages,
                   itemCount: widget.items.length,
-                  physics: _zoomed
+                  physics: _zoomed || widget.busy
                       ? const NeverScrollableScrollPhysics()
                       : null,
                   onPageChanged: (page) {
@@ -233,6 +238,7 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
                 ),
               ),
             ),
+            if (widget.busy) const Center(child: CircularProgressIndicator()),
             if (showChrome)
               SafeArea(
                 child: Align(
