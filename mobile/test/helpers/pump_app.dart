@@ -67,7 +67,9 @@ Future<void> tapText(WidgetTester tester, String text) async {
     await tester.scrollUntilVisible(matches, 100);
   }
   final target = matches.last;
-  await tester.ensureVisible(target);
+  // Centre it: the default aligns it to the edge, which can be behind a
+  // frosted bar that overlays the scroll view.
+  await Scrollable.ensureVisible(tester.element(target), alignment: 0.5);
   await tester.pumpAndSettle();
   await tester.tap(target);
   await tester.pumpAndSettle();

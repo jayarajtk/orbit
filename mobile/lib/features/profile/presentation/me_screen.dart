@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:orbit/app/router.dart';
+import 'package:orbit/core/widgets/glass_bar.dart';
 import 'package:orbit/core/widgets/profile_avatar.dart';
 import 'package:orbit/core/widgets/status_ring.dart';
 import 'package:orbit/features/media/data/media_capture.dart';
@@ -53,8 +54,8 @@ class MeScreen extends ConsumerWidget {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          SliverAppBar.large(
-            title: Text(l10n.meTitle),
+          LargeTitleSliverAppBar(
+            title: l10n.meTitle,
             actions: [
               IconButton(
                 tooltip: l10n.settingsTooltip,

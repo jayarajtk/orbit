@@ -5,6 +5,7 @@ import 'package:orbit/app/router.dart';
 import 'package:orbit/core/labels.dart';
 import 'package:orbit/core/network/api_client.dart';
 import 'package:orbit/core/widgets/empty_state.dart';
+import 'package:orbit/core/widgets/glass_bar.dart';
 import 'package:orbit/core/widgets/profile_avatar.dart';
 import 'package:orbit/core/widgets/status_ring.dart';
 import 'package:orbit/features/discovery/data/location_repository.dart';
@@ -28,7 +29,11 @@ class NearbyScreen extends ConsumerWidget {
     final grid = ref.watch(nearbyProfilesProvider);
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        flexibleSpace: const FrostedBackground(edge: FrostedEdge.bottom),
         title: Text(l10n.appName),
         actions: [
           FilterChip(
@@ -85,6 +90,10 @@ class _Grid extends StatelessWidget {
     ];
     return CustomScrollView(
       slivers: [
+        // The frosted app bar floats over the page, so start below it.
+        SliverPadding(
+          padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top),
+        ),
         if (fresh.isNotEmpty)
           SliverToBoxAdapter(child: _FreshFaces(profiles: fresh)),
         SliverPadding(

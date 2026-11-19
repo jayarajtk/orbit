@@ -122,32 +122,68 @@ void main() {
       tester.view.physicalSize = const Size(1170, 900);
       await tester.pumpAndSettle();
 
-      double sizeOf(Finder f) =>
-          (tester.renderObject(f) as RenderParagraph).text.style!.fontSize!;
-      final titles = find.descendant(
+      final title = find.descendant(
         of: find.byType(SliverAppBar),
         matching: find.text('Inbox'),
       );
-      final large = titles.first;
-      final compact = titles.last;
-      double compactOpacity() => tester
-          .widget<AnimatedOpacity>(
-            find.ancestor(
-              of: compact,
-              matching: find.byType(AnimatedOpacity),
-            ),
+      double scaleOf() => tester
+          .widget<Transform>(
+            find.ancestor(of: title, matching: find.byType(Transform)).first,
           )
-          .opacity;
+          .transform
+          .storage[0];
+      double sizeOf() =>
+          (tester.renderObject(title) as RenderParagraph).text.style!.fontSize!;
 
-      expect(sizeOf(large), 34);
-      expect(sizeOf(compact), 17);
-      expect(compactOpacity(), 0);
+      expect(sizeOf() * scaleOf(), closeTo(34, 0.01));
 
       await tester.drag(find.byType(CustomScrollView), const Offset(0, -200));
       await tester.pumpAndSettle();
 
-      expect(compactOpacity(), 1);
+      expect(sizeOf() * scaleOf(), closeTo(17, 0.01));
     });
+
+    for (final tab in ['Nearby', 'Inbox', 'Me']) {
+      testWidgets('$tab top bar is frosted', (tester) async {
+        await pumpOrbit(tester);
+        await onboard(tester);
+        await tapText(tester, tab);
+
+        expect(
+          find.descendant(
+            of: find.byType(AppBar),
+            matching: find.byType(BackdropFilter),
+          ),
+          findsOneWidget,
+        );
+      });
+    }
+
+    final lastItems = {
+      'Nearby': find.byType(InkWell),
+      'Inbox': find.byType(ListTile),
+      'Me': find.byType(ListTile),
+    };
+    for (final MapEntry(key: tab, value: items) in lastItems.entries) {
+      testWidgets('$tab content ends above the bottom bar', (tester) async {
+        await pumpOrbit(tester);
+        await onboard(tester);
+        await tapText(tester, tab);
+        // A short screen so every tab has something to scroll.
+        tester.view.physicalSize = const Size(1170, 900);
+        await tester.pumpAndSettle();
+
+        await tester.fling(
+          find.byType(Scrollable).first,
+          const Offset(0, -3000),
+          3000,
+        );
+        await tester.pumpAndSettle();
+
+        final barTop = tester.getTopLeft(find.byType(NavigationBar)).dy;
+        expect(tester.getBottomLeft(items.last).dy, lessThanOrEqualTo(barTop));
+      });
+    }
   });
 
   testWidgets('primary action meets the 48dp minimum touch target', (

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:orbit/app/router.dart';
 import 'package:orbit/core/clock.dart';
 import 'package:orbit/core/widgets/empty_state.dart';
+import 'package:orbit/core/widgets/glass_bar.dart';
 import 'package:orbit/core/widgets/profile_avatar.dart';
 import 'package:orbit/features/chat/domain/conversation.dart';
 import 'package:orbit/features/chat/presentation/chat_controller.dart';
@@ -66,7 +67,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          SliverAppBar.large(title: Text(l10n.tabInbox)),
+          LargeTitleSliverAppBar(title: l10n.tabInbox),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
