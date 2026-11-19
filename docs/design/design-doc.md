@@ -554,7 +554,8 @@ All errors use `application/problem+json` (RFC 9457). Every collection uses curs
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/accounts` | Create account after OIDC login (age gate) |
+| POST | `/accounts` | Create account after OIDC login. `201` + `Location: /api/v1/me`; `422 urn:orbit:problem:age-requirement` if under 18; `409 urn:orbit:problem:account-exists` if this sign-in already has one |
+| GET | `/me` | Own account (`id`, `status`, `createdAt`); `404 urn:orbit:problem:account-not-found` means onboarding is needed |
 | GET / PUT | `/me/profile` | Read or update own profile |
 | PUT | `/me/location` | Report position (server snaps it) |
 | GET | `/me/settings` · PATCH `/me/settings` | Privacy and notification settings |
