@@ -6,22 +6,28 @@ import 'package:orbit/features/safety/presentation/safety_providers.dart';
 import 'package:orbit/l10n/app_localizations.dart';
 
 /// Opens W9, the block / report sheet. Completes with true if the member
-/// was blocked, so callers can leave screens about them.
-Future<bool> showSafetySheet(BuildContext context, Profile profile) async {
+/// was blocked, so callers can leave screens about them. A [statusId] makes
+/// the report about that status, which the server keeps as evidence.
+Future<bool> showSafetySheet(
+  BuildContext context,
+  Profile profile, {
+  String? statusId,
+}) async {
   final blocked = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
     useSafeArea: true,
-    builder: (_) => _SafetySheet(profile: profile),
+    builder: (_) => _SafetySheet(profile: profile, statusId: statusId),
   );
   return blocked ?? false;
 }
 
 class _SafetySheet extends ConsumerStatefulWidget {
-  const _SafetySheet({required this.profile});
+  const _SafetySheet({required this.profile, this.statusId});
 
   final Profile profile;
+  final String? statusId;
 
   @override
   ConsumerState<_SafetySheet> createState() => _SafetySheetState();
@@ -81,6 +87,7 @@ class _SafetySheetState extends ConsumerState<_SafetySheet> {
             reason,
             name: _name,
             alsoBlock: _alsoBlock,
+            statusId: widget.statusId,
           );
     } on ApiException {
       messenger.showSnackBar(SnackBar(content: Text(l10n.actionFailed)));

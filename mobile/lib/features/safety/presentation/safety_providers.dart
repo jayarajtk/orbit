@@ -63,14 +63,21 @@ class BlockedNotifier extends Notifier<Set<String>> {
     state = {...state}..remove(id);
   }
 
-  /// Reports [id]; with [alsoBlock] they are blocked too.
+  /// Reports [id]; with [alsoBlock] they are blocked too. A [statusId] makes
+  /// the report about one of their statuses.
   Future<void> report(
     String id,
     ReportReason reason, {
     required String name,
     required bool alsoBlock,
+    String? statusId,
   }) async {
-    await _repository.report(id, reason, alsoBlock: alsoBlock);
+    await _repository.report(
+      id,
+      reason,
+      alsoBlock: alsoBlock,
+      statusId: statusId,
+    );
     ref
         .read(reportsProvider.notifier)
         .file(Report(profileId: id, reason: reason));

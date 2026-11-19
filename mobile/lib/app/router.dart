@@ -25,6 +25,7 @@ import 'package:orbit/features/safety/presentation/blocked_users_screen.dart';
 import 'package:orbit/features/safety/presentation/safety_centre_screen.dart';
 import 'package:orbit/features/settings/presentation/settings_screen.dart';
 import 'package:orbit/features/standing/presentation/restricted_screen.dart';
+import 'package:orbit/features/status/presentation/status_viewer.dart';
 
 /// Route paths, so screens never hard-code strings.
 abstract final class AppRoutes {
@@ -79,6 +80,12 @@ abstract final class AppRoutes {
 
   /// Why the account is suspended or banned, and the appeal (ADR-0007).
   static const restricted = '/restricted';
+
+  /// The user's own statuses, full screen.
+  static const myStatuses = '/status/me';
+
+  /// Member [id]'s statuses, full screen.
+  static String statuses(String id) => '/status/$id';
 
   /// W8 Profile of member [id].
   static String profile(String id) => '/profile/$id';
@@ -144,6 +151,26 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/profile/:id',
         builder: (context, state) =>
             ProfileScreen(profileId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/status/:profileId',
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          opaque: false,
+          fullscreenDialog: true,
+          transitionDuration: const Duration(milliseconds: 250),
+          reverseTransitionDuration: const Duration(milliseconds: 250),
+          child: StatusViewerScreen(
+            profileId: state.pathParameters['profileId']!,
+          ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+              MediaQuery.disableAnimationsOf(context)
+              ? child
+              : FadeTransition(
+                  opacity: animation.drive(CurveTween(curve: Curves.easeOut)),
+                  child: child,
+                ),
+        ),
       ),
       GoRoute(
         path: '/album/:id',

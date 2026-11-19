@@ -873,6 +873,48 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addStatusTooltip => 'Add a status';
 
   @override
+  String statusAgo(String unit, int count) {
+    String _temp0 = intl.Intl.selectLogic(
+      unit,
+      {
+        'now': 'Just now',
+        'minutes': '${count}m ago',
+        'other': '${count}h ago',
+      },
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String statusSegment(int current, int total) {
+    return 'Status $current of $total';
+  }
+
+  @override
+  String get statusYours => 'Your status';
+
+  @override
+  String get statusViewedBy => 'Viewed by';
+
+  @override
+  String statusViews(int count) {
+    return '👁 $count';
+  }
+
+  @override
+  String get statusNoViewers => 'No one has viewed this status yet.';
+
+  @override
+  String get statusDelete => 'Delete status';
+
+  @override
+  String get statusDeleteConfirm =>
+      'Delete this status? It disappears for everyone and can\'t be brought back.';
+
+  @override
+  String get statusReport => 'Report status';
+
+  @override
   String get photoMain => 'Main';
 
   @override

@@ -1630,6 +1630,60 @@ abstract class AppLocalizations {
   /// **'Add a status'**
   String get addStatusTooltip;
 
+  /// No description provided for @statusAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{unit, select, now{Just now} minutes{{count}m ago} other{{count}h ago}}'**
+  String statusAgo(String unit, int count);
+
+  /// No description provided for @statusSegment.
+  ///
+  /// In en, this message translates to:
+  /// **'Status {current} of {total}'**
+  String statusSegment(int current, int total);
+
+  /// No description provided for @statusYours.
+  ///
+  /// In en, this message translates to:
+  /// **'Your status'**
+  String get statusYours;
+
+  /// No description provided for @statusViewedBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Viewed by'**
+  String get statusViewedBy;
+
+  /// No description provided for @statusViews.
+  ///
+  /// In en, this message translates to:
+  /// **'👁 {count}'**
+  String statusViews(int count);
+
+  /// No description provided for @statusNoViewers.
+  ///
+  /// In en, this message translates to:
+  /// **'No one has viewed this status yet.'**
+  String get statusNoViewers;
+
+  /// No description provided for @statusDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete status'**
+  String get statusDelete;
+
+  /// No description provided for @statusDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this status? It disappears for everyone and can\'t be brought back.'**
+  String get statusDeleteConfirm;
+
+  /// No description provided for @statusReport.
+  ///
+  /// In en, this message translates to:
+  /// **'Report status'**
+  String get statusReport;
+
   /// No description provided for @photoMain.
   ///
   /// In en, this message translates to:
