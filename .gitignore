@@ -9,3 +9,7 @@
 .env.*
 
 # backend/ and mobile/ carry their own .gitignore files for build outputs.
+
+# Local worktrees and agent scratch space
+.claude/worktrees/
+.superpowers/
