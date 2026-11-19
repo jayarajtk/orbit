@@ -6,6 +6,9 @@ enum AttachChoice {
   /// Several photos from the library, up to ten.
   photos,
 
+  /// A short video from the library.
+  video,
+
   /// A new photo from the camera.
   camera,
 
@@ -46,6 +49,7 @@ class AttachSheet extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final options = [
       (AttachChoice.photos, Icons.photo_library_outlined, l10n.photosOption),
+      (AttachChoice.video, Icons.videocam_outlined, l10n.videoOption),
       (AttachChoice.camera, Icons.photo_camera_outlined, l10n.cameraOption),
       (AttachChoice.viewOnce, Icons.filter_1_outlined, l10n.viewOnceOption),
       (AttachChoice.album, Icons.collections_outlined, l10n.albumTooltip),
@@ -70,6 +74,7 @@ class AttachSheet extends StatelessWidget {
 
   static bool _needsServer(AttachChoice choice) =>
       choice == AttachChoice.photos ||
+      choice == AttachChoice.video ||
       choice == AttachChoice.camera ||
       choice == AttachChoice.viewOnce;
 }

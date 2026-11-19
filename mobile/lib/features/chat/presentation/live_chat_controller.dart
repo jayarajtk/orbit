@@ -105,6 +105,27 @@ class LiveChatController extends ChatController {
     unawaited(_upload(profileId, message));
   }
 
+  @override
+  void sendPhotos(String profileId, List<PickedMedia> photos) {
+    final pending = <Message>[];
+    for (final photo in photos) {
+      final message = _pendingMessage(MessageKind.photo);
+      _uploads[message.clientMsgId!] = photo;
+      _upsert(profileId, message);
+      pending.add(message);
+    }
+    unawaited(_uploadInOrder(profileId, pending));
+  }
+
+  /// Uploads and sends [messages] one at a time, so the server receives
+  /// them in the order they were picked however long each upload takes.
+  Future<void> _uploadInOrder(String profileId, List<Message> messages) async {
+    for (final message in messages) {
+      if (!ref.mounted) return;
+      await _upload(profileId, message);
+    }
+  }
+
   /// Uploads a pending media message's bytes, then sends it.
   Future<void> _upload(String profileId, Message message) async {
     final media = _uploads[message.clientMsgId];

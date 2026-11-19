@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -5,15 +6,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbit/app/theme.dart';
+import 'package:orbit/core/clock.dart';
 import 'package:orbit/core/widgets/photo_viewer.dart';
 import 'package:orbit/features/albums/data/album_repository.dart';
 import 'package:orbit/features/albums/domain/album.dart';
+import 'package:orbit/features/chat/data/chat_gateway.dart';
 import 'package:orbit/features/chat/domain/conversation.dart';
 import 'package:orbit/features/chat/domain/message.dart';
 import 'package:orbit/features/chat/presentation/attach_sheet.dart';
 import 'package:orbit/features/chat/presentation/chat_controller.dart';
 import 'package:orbit/features/chat/presentation/chat_items.dart';
 import 'package:orbit/features/chat/presentation/composer.dart';
+import 'package:orbit/features/chat/presentation/live_chat_controller.dart';
 import 'package:orbit/features/chat/presentation/message_bubble.dart';
 import 'package:orbit/features/chat/presentation/message_preview.dart';
 import 'package:orbit/features/discovery/data/dummy_profiles.dart';
@@ -22,6 +26,7 @@ import 'package:orbit/features/media/data/media_repository.dart';
 import 'package:orbit/features/media/domain/media.dart';
 import 'package:orbit/l10n/app_localizations.dart';
 
+import '../helpers/fake_chat_gateway.dart';
 import '../helpers/pump_app.dart';
 
 class _InMemoryAlbums implements AlbumRepository {
@@ -228,6 +233,12 @@ class _RecordingChat extends DemoChatController {
     PickedMedia media, {
     bool viewOnce = false,
   }) => sentMedia.add((kind, media.bytes, viewOnce));
+
+  @override
+  void sendPhotos(String profileId, List<PickedMedia> photos) =>
+      sentMedia.addAll(
+        [for (final photo in photos) (MessageKind.photo, photo.bytes, false)],
+      );
 }
 
 class _ThreePhotosPicker implements MediaPicker {
@@ -245,8 +256,17 @@ class _ThreePhotosPicker implements MediaPicker {
     ];
   }
 
+  Duration? videoLimit;
+
   @override
-  Future<PickedMedia?> pickVideo({required Duration maxDuration}) async => null;
+  Future<PickedMedia?> pickVideo({required Duration maxDuration}) async {
+    videoLimit = maxDuration;
+    return PickedMedia(
+      bytes: Uint8List.fromList([9]),
+      contentType: 'video/mp4',
+      durationMs: 5000,
+    );
+  }
 }
 
 class _NoUploads implements MediaRepository {
@@ -859,7 +879,7 @@ void main() {
   });
 
   group('attach sheet', () {
-    testWidgets('plus opens the attach sheet with six options', (
+    testWidgets('plus opens the attach sheet with every option', (
       tester,
     ) async {
       await openChatWith(tester, 'Alex');
@@ -872,11 +892,12 @@ void main() {
           of: find.byType(AttachSheet),
           matching: find.byType(ListTile),
         ),
-        findsNWidgets(6),
+        findsNWidgets(7),
       );
-      expect(AttachChoice.values, hasLength(6));
+      expect(AttachChoice.values, hasLength(7));
       for (final label in [
         'Photos (up to 10)',
+        'Video (up to 60 seconds)',
         'Take a photo',
         'View-once photo',
         'Share an album',
@@ -926,6 +947,92 @@ void main() {
       expect(chat.sentMedia.map((m) => m.$1), everyElement(MessageKind.photo));
       expect(chat.sentMedia.map((m) => m.$2.single), [1, 2, 3]);
       expect(chat.sentMedia.map((m) => m.$3), everyElement(isFalse));
+    });
+  });
+
+  group('sending media', () {
+    testWidgets('choosing video sends a video message', (tester) async {
+      final chat = _RecordingChat();
+      final picker = _ThreePhotosPicker();
+      await pumpOrbit(
+        tester,
+        overrides: [
+          chatProvider.overrideWith(() => chat),
+          mediaPickerProvider.overrideWithValue(picker),
+          mediaRepositoryProvider.overrideWithValue(_NoUploads()),
+          voiceRecorderProvider.overrideWithValue(_NoVoice()),
+        ],
+      );
+      await onboard(tester);
+      await tapText(tester, 'Inbox');
+      await tapText(tester, 'Alex');
+
+      await _openAttachSheet(tester);
+      await tapText(tester, 'Video (up to 60 seconds)');
+
+      expect(picker.videoLimit, const Duration(seconds: 60));
+      expect(chat.sentMedia.map((m) => m.$1), [MessageKind.video]);
+      expect(chat.sentMedia.single.$2, [9]);
+    });
+
+    testWidgets('photos upload and send one after another, in picked order', (
+      tester,
+    ) async {
+      final gateway = FakeChatGateway();
+      final media = FakeMediaRepository();
+      final slowFirst = Completer<void>();
+      media.before = (index) => index == 0 ? slowFirst.future : Future.value();
+      final container = ProviderContainer(
+        overrides: [
+          clockProvider.overrideWithValue(() => chatGatewayNow),
+          chatGatewayProvider.overrideWithValue(gateway),
+          chatProvider.overrideWith(LiveChatController.new),
+          mediaRepositoryProvider.overrideWithValue(media),
+        ],
+      );
+      addTearDown(() {
+        container.dispose();
+        gateway.dispose();
+      });
+      container.read(chatProvider);
+      await tester.pump();
+
+      container.read(chatProvider.notifier).sendPhotos('bob', [
+        for (var i = 1; i <= 3; i++)
+          PickedMedia(
+            bytes: Uint8List.fromList([i]),
+            contentType: 'image/jpeg',
+          ),
+      ]);
+      await tester.pump();
+
+      expect(media.started, 1, reason: 'the next upload waits for the first');
+      expect(
+        container
+            .read(chatProvider)['bob']!
+            .messages
+            .where(
+              (m) =>
+                  m.kind == MessageKind.photo &&
+                  m.status == DeliveryStatus.pending,
+            ),
+        hasLength(3),
+      );
+
+      slowFirst.complete();
+      await tester.pump();
+      await tester.pump();
+
+      expect(media.uploadedBytes.map((b) => b.single), [1, 2, 3]);
+      expect(gateway.sent.map((s) => s.$2.mediaId), [
+        'media-1',
+        'media-2',
+        'media-3',
+      ]);
+      expect(
+        gateway.sent.map((s) => s.$2.kind),
+        everyElement(MessageKind.photo),
+      );
     });
   });
 

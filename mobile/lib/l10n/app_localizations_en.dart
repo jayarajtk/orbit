@@ -991,6 +991,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get viewOnceOption => 'View-once photo';
 
   @override
+  String get videoOption => 'Video (up to 60 seconds)';
+
+  @override
   String get attachTooltip => 'Attach';
 
   @override

@@ -106,6 +106,15 @@ abstract class ChatController extends Notifier<Map<String, Conversation>> {
     bool viewOnce = false,
   }) {}
 
+  /// Sends each of [photos] as its own photo message, in order. Where
+  /// uploads are slow they must not overtake each other; see the live
+  /// controller.
+  void sendPhotos(String profileId, List<PickedMedia> photos) {
+    for (final photo in photos) {
+      sendMedia(profileId, MessageKind.photo, photo);
+    }
+  }
+
   /// Links to a message's media. For a view-once photo the recipient gets
   /// them once. Throws [ApiException].
   Future<MediaLinks> mediaLinks(String profileId, String messageId) =>

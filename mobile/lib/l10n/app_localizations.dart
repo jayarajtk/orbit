@@ -1822,6 +1822,12 @@ abstract class AppLocalizations {
   /// **'View-once photo'**
   String get viewOnceOption;
 
+  /// No description provided for @videoOption.
+  ///
+  /// In en, this message translates to:
+  /// **'Video (up to 60 seconds)'**
+  String get videoOption;
+
   /// No description provided for @attachTooltip.
   ///
   /// In en, this message translates to:

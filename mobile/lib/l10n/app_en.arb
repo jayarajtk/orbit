@@ -324,6 +324,7 @@
   "uploadFailed": "That file couldn't be used. Try another one.",
     "cameraOption": "Take a photo",
   "viewOnceOption": "View-once photo",
+  "videoOption": "Video (up to 60 seconds)",
   "attachTooltip": "Attach",
   "photosOption": "Photos (up to 10)",
   "photoTileLabel": "Photo {current} of {total}",

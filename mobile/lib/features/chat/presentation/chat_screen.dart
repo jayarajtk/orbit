@@ -155,6 +155,8 @@ class _ChatViewState extends ConsumerState<_ChatView> {
     switch (choice) {
       case AttachChoice.photos:
         await _sendPhotos();
+      case AttachChoice.video:
+        await _sendVideo();
       case AttachChoice.camera || AttachChoice.viewOnce:
         await _sendPhoto(
           camera: choice == AttachChoice.camera,
@@ -174,10 +176,15 @@ class _ChatViewState extends ConsumerState<_ChatView> {
   Future<void> _sendPhotos() async {
     final picked = await ref.read(mediaPickerProvider).pickPhotos();
     if (!mounted) return;
-    final chat = ref.read(chatProvider.notifier);
-    for (final photo in picked) {
-      chat.sendMedia(_id, MessageKind.photo, photo);
-    }
+    ref.read(chatProvider.notifier).sendPhotos(_id, picked);
+  }
+
+  Future<void> _sendVideo() async {
+    final picked = await ref
+        .read(mediaPickerProvider)
+        .pickVideo(maxDuration: const Duration(seconds: 60));
+    if (picked == null || !mounted) return;
+    ref.read(chatProvider.notifier).sendMedia(_id, MessageKind.video, picked);
   }
 
   Future<void> _sendPhoto({
