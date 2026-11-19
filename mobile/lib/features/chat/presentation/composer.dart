@@ -90,8 +90,8 @@ class Composer extends StatelessWidget {
                     minLines: 1,
                     maxLines: _maxLines,
                     textCapitalization: TextCapitalization.sentences,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => onSend(),
+                    // Return starts a new line; only the button sends.
+                    textInputAction: TextInputAction.newline,
                     onChanged: (text) {
                       if (text.isNotEmpty) onTyping();
                     },

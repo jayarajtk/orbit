@@ -359,6 +359,7 @@ Future<void> _pumpComposer(
   WidgetTester tester,
   TextEditingController controller, {
   bool recording = false,
+  VoidCallback? onSend,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -370,7 +371,7 @@ Future<void> _pumpComposer(
           alignment: Alignment.bottomCenter,
           child: Composer(
             controller: controller,
-            onSend: () {},
+            onSend: onSend ?? () {},
             onAttach: () {},
             onVoiceStart: () {},
             onVoiceStop: () {},
@@ -913,6 +914,28 @@ void main() {
       await tester.enterText(find.byType(TextField), '   ');
       await tester.pumpAndSettle();
       expect(find.byTooltip('Record a voice note'), findsOneWidget);
+    });
+
+    testWidgets('Return starts a new line and does not send', (tester) async {
+      final controller = TextEditingController();
+      addTearDown(controller.dispose);
+      var sends = 0;
+      await _pumpComposer(tester, controller, onSend: () => sends++);
+      final field = find.byType(TextField);
+
+      await tester.enterText(field, 'hi');
+      // The keyboard's Return key sends the field's configured action.
+      final returnKey = tester.widget<TextField>(field).textInputAction!;
+      await tester.testTextInput.receiveAction(returnKey);
+      await tester.enterText(field, 'hi\nthere');
+      await tester.pumpAndSettle();
+
+      expect(sends, 0);
+      expect(returnKey, TextInputAction.newline);
+      expect(controller.text, 'hi\nthere');
+
+      await tester.tap(find.byTooltip('Send'));
+      expect(sends, 1);
     });
 
     testWidgets('the plus button has a tooltip', (tester) async {
