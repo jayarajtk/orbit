@@ -628,6 +628,30 @@ class ChatIntegrationTests {
       assertThat(waveRows()).isEqualTo(2);
     }
 
+    @Test
+    void concurrentResendOfTheLimitingWaveIsNotRefused() throws Exception {
+      sendWave("alice", "bob", "w-1").expectStatus().isCreated();
+      ExecutorService pool = Executors.newFixedThreadPool(2);
+      CountDownLatch gate = new CountDownLatch(1);
+      try {
+        List<Future<String>> sends = new java.util.ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+          sends.add(
+              pool.submit(() -> {
+                gate.await();
+                return waveId(sendWave("alice", "bob", "w-2"));
+              }));
+        }
+        gate.countDown();
+        assertThat(sends.get(0).get(30, TimeUnit.SECONDS))
+            .isEqualTo(sends.get(1).get(30, TimeUnit.SECONDS));
+      } finally {
+        pool.shutdownNow();
+      }
+
+      assertThat(waveRows()).isEqualTo(2);
+    }
+
     private String waveId(RestTestClient.ResponseSpec response) {
       return response
           .expectBody(JsonNode.class)

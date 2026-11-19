@@ -47,10 +47,10 @@ class ChatWebSocketConfig implements WebSocketConfigurer {
   @Validated
   @ConfigurationProperties(prefix = "orbit.chat")
   record ChatProperties(
-      List<String> allowedOrigins, @Min(1) int waveLimit, @NotNull Duration waveWindow) {
+      List<String> allowedOrigins, @Min(1) Integer waveLimit, @NotNull Duration waveWindow) {
     ChatProperties {
       allowedOrigins = allowedOrigins == null ? List.of() : List.copyOf(allowedOrigins);
-      waveLimit = waveLimit == 0 ? DEFAULT_WAVE_LIMIT : waveLimit;
+      waveLimit = waveLimit == null ? DEFAULT_WAVE_LIMIT : waveLimit;
       waveWindow = waveWindow == null ? DEFAULT_WAVE_WINDOW : waveWindow;
     }
   }

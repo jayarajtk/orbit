@@ -106,6 +106,13 @@ public class ChatService {
     } catch (DuplicateKeyException e) {
       // A concurrent retry with the same client id won; return what it stored.
       return new SendResult(store.byClientId(me, command.clientMsgId()).orElseThrow(), false);
+    } catch (WaveLimitReachedException e) {
+      // A concurrent send with this client id may have stored the wave that filled the limit;
+      // that is a retry, not a new wave.
+      return store
+          .byClientId(me, command.clientMsgId())
+          .map(stored -> new SendResult(stored, false))
+          .orElseThrow(() -> e);
     }
   }
 
