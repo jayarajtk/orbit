@@ -18,6 +18,7 @@ class OrbitTokens extends ThemeExtension<OrbitTokens> {
     required this.ringEnd,
     required this.avatarGradients,
     required this.onAvatar,
+    required this.readTick,
   });
 
   /// The dark set, used when the phone is in dark mode.
@@ -34,6 +35,7 @@ class OrbitTokens extends ThemeExtension<OrbitTokens> {
     ringEnd: _ringEnd,
     avatarGradients: _avatarGradients,
     onAvatar: _onAvatar,
+    readTick: const Color(0xFFFF9A8A),
   );
 
   /// The light set, used when the phone is in light mode.
@@ -51,6 +53,7 @@ class OrbitTokens extends ThemeExtension<OrbitTokens> {
     ringEnd: _ringEnd,
     avatarGradients: _avatarGradients,
     onAvatar: _onAvatar,
+    readTick: const Color(0xFFA8301F),
   );
 
   static const _ringEnd = Color(0xFFFF9F0A);
@@ -103,15 +106,24 @@ class OrbitTokens extends ThemeExtension<OrbitTokens> {
   /// Text colour on [avatarGradients].
   final Color onAvatar;
 
-  /// Fill of the member's own chat bubbles: a light wash of [accent] over
-  /// [surface], so accent ticks stay visible on it.
-  Color get ownBubble =>
-      Color.alphaBlend(accent.withValues(alpha: 0.06), surface);
+  /// Colour of the read ticks on [ownBubble]: a shade of [accent] chosen for
+  /// contrast against that fill, not the brand accent itself.
+  final Color readTick;
 
-  /// Time and sent/delivered tick colour on a bubble filled with [bubble]:
-  /// [text] at reduced strength, which clears AA on both bubble fills.
+  /// Fill of the member's own chat bubbles: a wash of [accent] over
+  /// [surface], clearly apart from incoming bubbles and the page.
+  Color get ownBubble =>
+      Color.alphaBlend(accent.withValues(alpha: 0.2), surface);
+
+  /// Time text colour on a bubble filled with [bubble]: [text] at reduced
+  /// strength, which clears AA on both bubble fills.
   Color onBubbleMuted(Color bubble) =>
       Color.alphaBlend(text.withValues(alpha: 0.7), bubble);
+
+  /// Sent and delivered tick colour on [bubble]: fainter than the time text
+  /// so it stays distinct from [readTick], and still 3:1 against the fill.
+  Color tickMuted(Color bubble) =>
+      Color.alphaBlend(text.withValues(alpha: 0.45), bubble);
 
   @override
   OrbitTokens copyWith({
@@ -127,6 +139,7 @@ class OrbitTokens extends ThemeExtension<OrbitTokens> {
     Color? ringEnd,
     List<(Color, Color)>? avatarGradients,
     Color? onAvatar,
+    Color? readTick,
   }) {
     return OrbitTokens(
       ground: ground ?? this.ground,
@@ -141,6 +154,7 @@ class OrbitTokens extends ThemeExtension<OrbitTokens> {
       ringEnd: ringEnd ?? this.ringEnd,
       avatarGradients: avatarGradients ?? this.avatarGradients,
       onAvatar: onAvatar ?? this.onAvatar,
+      readTick: readTick ?? this.readTick,
     );
   }
 
@@ -161,6 +175,7 @@ class OrbitTokens extends ThemeExtension<OrbitTokens> {
       ringEnd: mix(ringEnd, other.ringEnd),
       avatarGradients: t < 0.5 ? avatarGradients : other.avatarGradients,
       onAvatar: mix(onAvatar, other.onAvatar),
+      readTick: mix(readTick, other.readTick),
     );
   }
 }

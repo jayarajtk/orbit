@@ -359,7 +359,7 @@ void main() {
 
     expect(find.textContaining('2:05'), findsOneWidget);
     expect(_tick('Read'), findsOneWidget);
-    expect(tester.widget<Icon>(_tick('Read')).color, _tokens.accent);
+    expect(tester.widget<Icon>(_tick('Read')).color, _tokens.readTick);
   });
 
   testWidgets('read receipts off shows grey ticks', (tester) async {
@@ -372,7 +372,7 @@ void main() {
     expect(_tick('Read'), findsNothing);
     expect(
       tester.widget<Icon>(_tick('Delivered')).color,
-      _tokens.onBubbleMuted(_tokens.ownBubble),
+      _tokens.tickMuted(_tokens.ownBubble),
     );
   });
 

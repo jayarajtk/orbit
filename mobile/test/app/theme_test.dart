@@ -85,6 +85,11 @@ void main() {
         final own = t.ownBubble;
         final incoming = t.surface;
 
+        test('own bubbles stand apart from incoming ones and the page', () {
+          expect(contrastRatio(own, incoming), greaterThanOrEqualTo(1.25));
+          expect(contrastRatio(own, t.ground), greaterThanOrEqualTo(1.15));
+        });
+
         test('time text on own and incoming bubbles', () {
           expect(
             contrastRatio(t.onBubbleMuted(own), own),
@@ -98,13 +103,17 @@ void main() {
 
         test('sent and delivered ticks on own bubbles', () {
           expect(
-            contrastRatio(t.onBubbleMuted(own), own),
+            contrastRatio(t.tickMuted(own), own),
             greaterThanOrEqualTo(3.0),
           );
         });
 
-        test('accent read ticks on own bubbles have real margin', () {
-          expect(contrastRatio(t.accent, own), greaterThanOrEqualTo(3.3));
+        test('read ticks have margin and differ from sent ticks', () {
+          expect(contrastRatio(t.readTick, own), greaterThanOrEqualTo(3.3));
+          expect(
+            contrastRatio(t.readTick, t.tickMuted(own)),
+            greaterThanOrEqualTo(1.5),
+          );
         });
       });
 

@@ -182,31 +182,32 @@ class _TimeAndTicks extends StatelessWidget {
     final muted = tokens.onBubbleMuted(
       message.fromMe ? tokens.ownBubble : tokens.surface,
     );
+    final tickColor = tokens.tickMuted(tokens.ownBubble);
     final tick = message.fromMe && !message.unsent
         ? switch (message.status) {
             DeliveryStatus.pending => Icon(
               Icons.schedule,
               size: _tickSize,
-              color: muted,
+              color: tickColor,
               semanticLabel: l10n.statusSending,
             ),
             DeliveryStatus.sent => Icon(
               Icons.done,
               size: _tickSize,
-              color: muted,
+              color: tickColor,
               semanticLabel: l10n.tickSent,
             ),
             DeliveryStatus.read when showReadReceipt => Icon(
               Icons.done_all,
               size: _tickSize,
-              color: tokens.accent,
+              color: tokens.readTick,
               semanticLabel: l10n.tickRead,
             ),
             // With receipts off, a read message looks merely delivered.
             DeliveryStatus.read => Icon(
               Icons.done_all,
               size: _tickSize,
-              color: muted,
+              color: tickColor,
               semanticLabel: l10n.tickDelivered,
             ),
             DeliveryStatus.failed => null,
