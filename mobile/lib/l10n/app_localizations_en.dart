@@ -1189,4 +1189,43 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get policyOther => 'breaking our community guidelines';
+
+  @override
+  String get addPhotos => 'Add photos';
+
+  @override
+  String selectedCount(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String get clearSelection => 'Cancel selection';
+
+  @override
+  String deletePhotosTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Delete $count photos?',
+      one: 'Delete this photo?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get deletePhotosBody => 'This can\'t be undone.';
+
+  @override
+  String get uploadingPhoto => 'Uploading photo';
+
+  @override
+  String get uploadFailedRetry => 'Upload failed. Tap to retry';
+
+  @override
+  String get discardUpload => 'Discard upload';
+
+  @override
+  String photoPagePosition(int current, int total) {
+    return '$current of $total';
+  }
 }

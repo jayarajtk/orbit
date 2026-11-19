@@ -47,6 +47,9 @@ class _InMemoryAlbums implements AlbumRepository {
   Future<void> addPhoto(String albumId, String mediaId) async {}
 
   @override
+  Future<void> removePhoto(String albumId, String mediaId) async {}
+
+  @override
   Future<void> share(
     String albumId,
     String profileId,

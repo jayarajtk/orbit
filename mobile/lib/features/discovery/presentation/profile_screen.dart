@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:orbit/app/router.dart';
+import 'package:orbit/app/theme.dart';
 import 'package:orbit/core/clock.dart';
 import 'package:orbit/core/labels.dart';
 import 'package:orbit/core/widgets/empty_state.dart';
 import 'package:orbit/core/widgets/glass_icon_button.dart';
 import 'package:orbit/core/widgets/media_image.dart';
+import 'package:orbit/core/widgets/photo_viewer.dart';
 import 'package:orbit/core/widgets/profile_avatar.dart';
 import 'package:orbit/core/widgets/status_ring.dart';
 import 'package:orbit/features/chat/presentation/chat_controller.dart';
@@ -20,6 +22,19 @@ import 'package:orbit/features/safety/presentation/safety_sheet.dart';
 import 'package:orbit/features/status/domain/status.dart';
 import 'package:orbit/features/status/presentation/status_providers.dart';
 import 'package:orbit/l10n/app_localizations.dart';
+
+const _photoHeight = 420.0;
+
+/// How far the details card slides up over the photo.
+const _cardOverlap = 24.0;
+
+/// Fraction of the photo's width at each edge where a tap changes photo.
+const _stepZone = 0.3;
+
+const _photoStep = Duration(milliseconds: 250);
+
+/// The tag shared by the grid tile and the first photo, so it flies in.
+String _heroTag(Profile profile) => 'profile-photo-${profile.id}';
 
 /// W8: another member's full profile.
 class ProfileScreen extends ConsumerWidget {
@@ -116,6 +131,42 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
     );
   }
 
+  void _stepPhoto(int delta, int count) {
+    final target = _page + delta;
+    if (target < 0 || target >= count) return;
+    unawaited(
+      _pages.animateToPage(
+        target,
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : _photoStep,
+        curve: Curves.easeOut,
+      ),
+    );
+  }
+
+  void _openPhotos() {
+    final items = [
+      for (final photo in _profile.photos)
+        PhotoViewerItem(
+          mediaId: photo.id,
+          url: photo.url,
+          thumbUrl: photo.thumbUrl,
+          ownerId: _profile.id,
+        ),
+    ];
+    if (items.isEmpty) return;
+    final index = _page.clamp(0, items.length - 1);
+    unawaited(
+      openPhotos(
+        context,
+        items,
+        initialIndex: index,
+        heroTag: index == 0 ? _heroTag(_profile) : null,
+      ),
+    );
+  }
+
   Future<void> _openSafety() async {
     final blocked = await showSafetySheet(context, _profile);
     if (blocked && mounted) context.pop();
@@ -175,196 +226,318 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
-          SizedBox(
-            height: 420,
-            child: Stack(
-              children: [
-                PageView.builder(
+          Stack(
+            children: [
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: _photoHeight,
+                child: _PhotoPager(
+                  profile: _profile,
+                  count: photos,
                   controller: _pages,
-                  itemCount: photos,
+                  page: _page,
+                  ring: ring,
                   onPageChanged: (page) => setState(() => _page = page),
-                  itemBuilder: (context, index) => Semantics(
-                    label: l10n.photoOf(index + 1, photos),
-                    child: ProfileAvatar(
-                      name: _profile.name,
-                      seed: '${_profile.id}-$index',
-                      photoUrl: index < _profile.photos.length
-                          ? _profile.photos[index].url
-                          : null,
-                      mediaId: index < _profile.photos.length
-                          ? _profile.photos[index].id
-                          : null,
-                      ownerId: _profile.id,
-                      variant: MediaVariant.full,
-                      size: double.infinity,
-                      square: true,
-                    ),
-                  ),
+                  onStep: (delta) => _stepPhoto(delta, photos),
+                  onOpen: _openPhotos,
                 ),
-                const Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: 120,
-                  child: IgnorePointer(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Color(0x73000000), // photo-overlay
-                            Color(0x00000000), // photo-overlay
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(
+                  top: _photoHeight - _cardOverlap,
                 ),
-                if (ring != StatusRing.none)
-                  Positioned(
-                    left: 16,
-                    bottom: 12,
-                    child: Semantics(
-                      container: true,
-                      button: true,
-                      label: l10n.statusViewOf(_profile.name),
-                      excludeSemantics: true,
-                      child: GestureDetector(
-                        key: const ValueKey('status-ring'),
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () =>
-                            context.push(AppRoutes.statuses(_profile.id)),
-                        child: StatusRingFrame(
-                          ring: ring,
-                          child: Padding(
-                            padding: const EdgeInsets.all(4),
-                            child: ProfileAvatar(
-                              name: _profile.name,
-                              seed: _profile.id,
-                              photoUrl: _profile.thumbUrl,
-                              mediaId: _profile.thumbMediaId,
-                              ownerId: _profile.id,
-                              size: 56,
-                            ),
-                          ),
-                        ),
-                      ),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: context.tokens.surface,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16),
                     ),
                   ),
-                if (photos > 1)
-                  Positioned(
-                    bottom: 12,
-                    left: 0,
-                    right: 0,
-                    child: ExcludeSemantics(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          for (var i = 0; i < photos; i++)
-                            Container(
-                              width: i == _page ? 18 : 6,
-                              height: 6,
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 3,
+                          Row(
+                            children: [
+                              if (_profile.online) ...[
+                                const OnlineDot(),
+                                const SizedBox(width: 8),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  l10n.nameWithAge(_profile.name, _profile.age),
+                                  style: theme.textTheme.headlineSmall,
+                                ),
                               ),
-                              decoration: BoxDecoration(
-                                color: i == _page
-                                    ? Colors
-                                          .white // photo-overlay
-                                    : Colors.white54, // photo-overlay
-                                borderRadius: BorderRadius.circular(3),
+                              Text(
+                                l10n.distance(_profile.distanceKm),
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (details.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              details.join(' · '),
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
+                          ],
+                          const SizedBox(height: 12),
+                          Text(_profile.bio, style: theme.textTheme.bodyLarge),
+                          const SizedBox(height: 16),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              for (final goal in _profile.lookingFor)
+                                Chip(label: Text(l10n.lookingFor(goal))),
+                              for (final tag in _profile.tags)
+                                Chip(label: Text('#$tag')),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: waveUnlocksAt == null
+                                      ? _wave
+                                      : null,
+                                  icon: const Icon(Icons.waving_hand_outlined),
+                                  label: Text(
+                                    waveUnlocksAt == null
+                                        ? l10n.waveButton
+                                        : l10n.waveAgainIn(
+                                            waitLabel(
+                                              waveUnlocksAt.difference(
+                                                ref.read(clockProvider)(),
+                                              ),
+                                            ),
+                                          ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                flex: 2,
+                                child: FilledButton.icon(
+                                  onPressed: () =>
+                                      context.push(AppRoutes.chat(_profile.id)),
+                                  icon: const Icon(Icons.chat_bubble_outline),
+                                  label: Text(l10n.messageButton),
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
                   ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    if (_profile.online) ...[
-                      const OnlineDot(),
-                      const SizedBox(width: 8),
-                    ],
-                    Expanded(
-                      child: Text(
-                        l10n.nameWithAge(_profile.name, _profile.age),
-                        style: theme.textTheme.headlineSmall,
-                      ),
-                    ),
-                    Text(
-                      l10n.distance(_profile.distanceKm),
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
                 ),
-                if (details.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    details.join(' · '),
-                    style: TextStyle(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 12),
-                Text(_profile.bio, style: theme.textTheme.bodyLarge),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final goal in _profile.lookingFor)
-                      Chip(label: Text(l10n.lookingFor(goal))),
-                    for (final tag in _profile.tags) Chip(label: Text('#$tag')),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: waveUnlocksAt == null ? _wave : null,
-                        icon: const Icon(Icons.waving_hand_outlined),
-                        label: Text(
-                          waveUnlocksAt == null
-                              ? l10n.waveButton
-                              : l10n.waveAgainIn(
-                                  waitLabel(
-                                    waveUnlocksAt.difference(
-                                      ref.read(clockProvider)(),
-                                    ),
-                                  ),
-                                ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: FilledButton.icon(
-                        onPressed: () =>
-                            context.push(AppRoutes.chat(_profile.id)),
-                        icon: const Icon(Icons.chat_bubble_outline),
-                        label: Text(l10n.messageButton),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PhotoPager extends StatelessWidget {
+  const _PhotoPager({
+    required this.profile,
+    required this.count,
+    required this.controller,
+    required this.page,
+    required this.ring,
+    required this.onPageChanged,
+    required this.onStep,
+    required this.onOpen,
+  });
+
+  final Profile profile;
+  final int count;
+  final PageController controller;
+  final int page;
+  final StatusRing ring;
+  final ValueChanged<int> onPageChanged;
+  final ValueChanged<int> onStep;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final still = MediaQuery.disableAnimationsOf(context);
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: LayoutBuilder(
+            builder: (context, constraints) => GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              // Edge taps step through the photos; the middle opens the viewer.
+              onTapUp: (details) {
+                final x = details.localPosition.dx / constraints.maxWidth;
+                if (count > 1 && x < _stepZone) {
+                  onStep(-1);
+                } else if (count > 1 && x > 1 - _stepZone) {
+                  onStep(1);
+                } else {
+                  onOpen();
+                }
+              },
+              child: PageView.builder(
+                controller: controller,
+                itemCount: count,
+                onPageChanged: onPageChanged,
+                itemBuilder: (context, index) {
+                  final photo = index < profile.photos.length
+                      ? profile.photos[index]
+                      : null;
+                  final avatar = ProfileAvatar(
+                    name: profile.name,
+                    seed: '${profile.id}-$index',
+                    photoUrl: photo?.url,
+                    mediaId: photo?.id,
+                    ownerId: profile.id,
+                    variant: MediaVariant.full,
+                    size: double.infinity,
+                    square: true,
+                  );
+                  return Semantics(
+                    label: l10n.photoOf(index + 1, count),
+                    child: index == 0 && !still
+                        ? Hero(tag: _heroTag(profile), child: avatar)
+                        : avatar,
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+        const Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 120,
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0x73000000), // photo-overlay
+                    Color(0x00000000), // photo-overlay
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (count > 1)
+          Positioned(
+            top: MediaQuery.paddingOf(context).top + 8,
+            left: 12,
+            right: 12,
+            child: _SegmentBar(count: count, page: page, onStep: onStep),
+          ),
+        if (ring != StatusRing.none)
+          Positioned(
+            left: 16,
+            bottom: _cardOverlap + 12,
+            child: Semantics(
+              container: true,
+              button: true,
+              label: l10n.statusViewOf(profile.name),
+              excludeSemantics: true,
+              child: GestureDetector(
+                key: const ValueKey('status-ring'),
+                behavior: HitTestBehavior.opaque,
+                onTap: () => context.push(AppRoutes.statuses(profile.id)),
+                child: StatusRingFrame(
+                  ring: ring,
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: ProfileAvatar(
+                      name: profile.name,
+                      seed: profile.id,
+                      photoUrl: profile.thumbUrl,
+                      mediaId: profile.thumbMediaId,
+                      ownerId: profile.id,
+                      size: 56,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// One thin segment per photo, the current one bright. Screen readers get
+/// one "2 of 5" control they can swipe up or down.
+class _SegmentBar extends StatelessWidget {
+  const _SegmentBar({
+    required this.count,
+    required this.page,
+    required this.onStep,
+  });
+
+  final int count;
+  final int page;
+  final ValueChanged<int> onStep;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : _photoStep;
+    return Semantics(
+      container: true,
+      label: l10n.photoPagePosition(page + 1, count),
+      value: '${page + 1}',
+      increasedValue: '${page + 2}',
+      decreasedValue: '$page',
+      onIncrease: page < count - 1 ? () => onStep(1) : null,
+      onDecrease: page > 0 ? () => onStep(-1) : null,
+      child: ExcludeSemantics(
+        child: IgnorePointer(
+          child: Row(
+            children: [
+              for (var i = 0; i < count; i++)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: AnimatedContainer(
+                      key: ValueKey('photo-segment-$i'),
+                      duration: duration,
+                      curve: Curves.easeOut,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: i == page
+                            ? Colors
+                                  .white // photo-overlay
+                            : Colors.white38, // photo-overlay
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

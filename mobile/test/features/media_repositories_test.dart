@@ -200,6 +200,15 @@ void main() {
       expect(grant.expiresAt, DateTime.utc(2026, 11, 19, 12));
     });
 
+    test('removes a photo from an album', () async {
+      final api = FakeAdapter({'DELETE /albums/a1/photos/m1': (204, null)});
+
+      await ApiAlbumRepository(dioWith(api)).removePhoto('a1', 'm1');
+
+      expect(api.requests.single.method, 'DELETE');
+      expect(api.requests.single.path, '/albums/a1/photos/m1');
+    });
+
     test('shares with the access the server understands', () async {
       final api = FakeAdapter({'PUT /albums/a1/grants/bob': (204, null)});
 

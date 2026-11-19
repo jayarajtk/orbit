@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:orbit/app/theme.dart';
 import 'package:orbit/core/network/api_client.dart';
 import 'package:orbit/core/widgets/media_image.dart';
 import 'package:orbit/core/widgets/photo_viewer.dart';
@@ -34,7 +35,8 @@ class AlbumScreen extends ConsumerStatefulWidget {
 class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   OpenedAlbum? _album;
   bool _failed = false;
-  bool _adding = false;
+  bool _deleting = false;
+  final Set<String> _selected = {};
 
   @override
   void initState() {
@@ -56,94 +58,348 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   bool get _mine =>
       ref.watch(albumsProvider).any((album) => album.id == widget.albumId);
 
+  bool get _selecting => _selected.isNotEmpty;
+
   Future<void> _add() async {
+    final photos = await ref.read(mediaPickerProvider).pickPhotos();
+    if (photos.isEmpty || !mounted) return;
+    unawaited(
+      ref.read(albumsProvider.notifier).addPhotos(widget.albumId, photos),
+    );
+  }
+
+  void _toggle(String mediaId) => setState(() {
+    if (!_selected.remove(mediaId)) _selected.add(mediaId);
+  });
+
+  Future<void> _deleteSelected(OpenedAlbum album) async {
     final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    final photo = await ref.read(mediaPickerProvider).pickPhoto(camera: false);
-    if (photo == null || !mounted) return;
-    setState(() => _adding = true);
-    try {
-      await ref.read(albumsProvider.notifier).addPhoto(widget.albumId, photo);
-      await _open();
-    } on ApiException catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            e.status == 422 ? l10n.uploadFailed : l10n.actionFailed,
+    final ids = [
+      for (final p in album.photos)
+        if (_selected.contains(p.id)) p.id,
+    ];
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.deletePhotosTitle(ids.length)),
+        content: Text(l10n.deletePhotosBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.cancel),
           ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _adding = false);
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.deleteAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _deleting = true);
+    try {
+      await ref.read(albumsProvider.notifier).removePhotos(widget.albumId, ids);
+    } on ApiException {
+      messenger.showSnackBar(SnackBar(content: Text(l10n.actionFailed)));
     }
+    if (!mounted) return;
+    setState(() {
+      _selected.clear();
+      _deleting = false;
+    });
+    await _open();
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final album = _album;
-    return Scaffold(
-      appBar: AppBar(title: Text(album?.name ?? '')),
-      floatingActionButton: album != null && _mine
-          ? FloatingActionButton.extended(
-              onPressed: _adding ? null : _add,
-              icon: _adding
-                  ? const SizedBox.square(
-                      dimension: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.add_a_photo_outlined),
-              label: Text(l10n.addPhoto),
-            )
-          : null,
-      body: _failed
-          ? Center(child: Text(l10n.albumGone))
-          : album == null
-          ? const Center(child: CircularProgressIndicator())
-          : album.photos.isEmpty
-          ? Center(child: Text(l10n.albumEmpty))
-          : GridView.count(
-              crossAxisCount: 3,
-              padding: const EdgeInsets.all(4),
-              mainAxisSpacing: 4,
-              crossAxisSpacing: 4,
-              children: [
-                for (final (index, photo) in album.photos.indexed)
-                  Semantics(
-                    button: true,
-                    label: l10n.photoMessage,
-                    child: GestureDetector(
-                      onTap: () => openPhotos(
-                        context,
-                        [
-                          for (final p in album.photos)
-                            PhotoViewerItem(
-                              mediaId: p.id,
-                              url: p.links.url,
-                              thumbUrl: p.links.thumbUrl,
-                              cache: !album.viewOnce,
-                              ownerId: album.ownerId,
-                            ),
-                        ],
-                        initialIndex: index,
-                        heroTag: 'album-photo:${photo.id}',
+    final mine = _mine;
+    final uploads = ref.watch(albumUploadsProvider)[widget.albumId] ?? const [];
+    // A finished upload is now on the server: show it as a photo.
+    ref.listen(
+      albumUploadsProvider.select((all) => all[widget.albumId]?.length ?? 0),
+      (previous, next) {
+        if (next < (previous ?? 0)) unawaited(_open());
+      },
+    );
+    final busy = uploads.any((u) => !u.failed);
+    final photos = album?.photos ?? const <AlbumPhoto>[];
+
+    return PopScope(
+      canPop: !_selecting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) setState(_selected.clear);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: _selecting
+              ? IconButton(
+                  tooltip: l10n.clearSelection,
+                  icon: const Icon(Icons.close),
+                  onPressed: () => setState(_selected.clear),
+                )
+              : null,
+          title: _selecting
+              ? Semantics(
+                  liveRegion: true,
+                  child: Text(l10n.selectedCount(_selected.length)),
+                )
+              : Text(album?.name ?? ''),
+          actions: [
+            if (_selecting && album != null)
+              IconButton(
+                tooltip: l10n.deleteAction,
+                icon: const Icon(Icons.delete_outline),
+                onPressed: _deleting ? null : () => _deleteSelected(album),
+              ),
+          ],
+        ),
+        floatingActionButton: album != null && mine && !_selecting
+            ? FloatingActionButton.extended(
+                onPressed: busy ? null : _add,
+                icon: const Icon(Icons.add_a_photo_outlined),
+                label: Text(l10n.addPhotos),
+              )
+            : null,
+        body: _failed
+            ? Center(child: Text(l10n.albumGone))
+            : album == null
+            ? const Center(child: CircularProgressIndicator())
+            : photos.isEmpty && uploads.isEmpty
+            ? Center(child: Text(l10n.albumEmpty))
+            : GridView.builder(
+                padding: const EdgeInsets.only(bottom: 88),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  mainAxisSpacing: 1,
+                  crossAxisSpacing: 1,
+                ),
+                itemCount: photos.length + uploads.length,
+                itemBuilder: (context, i) {
+                  if (i >= photos.length) {
+                    final upload = uploads[i - photos.length];
+                    return _UploadTile(
+                      key: ValueKey('upload-tile-${upload.localId}'),
+                      upload: upload,
+                      onRetry: () => unawaited(
+                        ref
+                            .read(albumsProvider.notifier)
+                            .retryUpload(widget.albumId, upload.localId),
                       ),
-                      child: Hero(
-                        tag: 'album-photo:${photo.id}',
-                        child: MediaImage(
-                          mediaId: photo.id,
-                          url: photo.links.thumbUrl ?? photo.links.url,
-                          variant: photo.links.thumbUrl == null
-                              ? MediaVariant.full
-                              : MediaVariant.thumb,
-                          cache: !album.viewOnce,
-                          ownerId: album.ownerId,
-                        ),
+                      onDiscard: () => ref
+                          .read(albumsProvider.notifier)
+                          .discardUpload(widget.albumId, upload.localId),
+                    );
+                  }
+                  final photo = photos[i];
+                  return _PhotoTile(
+                    key: ValueKey('album-tile-${photo.id}'),
+                    album: album,
+                    index: i,
+                    selecting: _selecting,
+                    selected: _selected.contains(photo.id),
+                    onToggle: () => _toggle(photo.id),
+                    onSelect: mine && !_deleting
+                        ? () => _toggle(photo.id)
+                        : null,
+                  );
+                },
+              ),
+      ),
+    );
+  }
+}
+
+class _PhotoTile extends StatelessWidget {
+  const _PhotoTile({
+    required this.album,
+    required this.index,
+    required this.selecting,
+    required this.selected,
+    required this.onToggle,
+    required this.onSelect,
+    super.key,
+  });
+
+  final OpenedAlbum album;
+  final int index;
+  final bool selecting;
+  final bool selected;
+  final VoidCallback onToggle;
+
+  /// Starts or extends a selection; null when the viewer may not select.
+  final VoidCallback? onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final tokens = context.tokens;
+    final photo = album.photos[index];
+    final heroTag = 'album-photo:${photo.id}';
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: l10n.photoOf(index + 1, album.photos.length),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: selecting
+            ? onToggle
+            : () => openPhotos(
+                context,
+                [
+                  for (final p in album.photos)
+                    PhotoViewerItem(
+                      mediaId: p.id,
+                      url: p.links.url,
+                      thumbUrl: p.links.thumbUrl,
+                      cache: !album.viewOnce,
+                      ownerId: album.ownerId,
+                    ),
+                ],
+                initialIndex: index,
+                heroTag: heroTag,
+              ),
+        onLongPress: selecting ? null : onSelect,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Hero(
+              tag: heroTag,
+              child: MediaImage(
+                mediaId: photo.id,
+                url: photo.links.thumbUrl ?? photo.links.url,
+                variant: photo.links.thumbUrl == null
+                    ? MediaVariant.full
+                    : MediaVariant.thumb,
+                cache: !album.viewOnce,
+                ownerId: album.ownerId,
+              ),
+            ),
+            if (selected)
+              ColoredBox(color: tokens.accent.withValues(alpha: 0.3)),
+            if (selecting)
+              Positioned(
+                top: 6,
+                right: 6,
+                child: ExcludeSemantics(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: selected ? tokens.accent : Colors.transparent,
+                      border: Border.all(
+                        color: selected
+                            ? tokens.accent
+                            : Colors.white, // photo-overlay
+                        width: 2,
+                      ),
+                    ),
+                    child: SizedBox.square(
+                      dimension: 22,
+                      child: selected
+                          ? Icon(Icons.check, size: 16, color: tokens.ground)
+                          : null,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UploadTile extends StatelessWidget {
+  const _UploadTile({
+    required this.upload,
+    required this.onRetry,
+    required this.onDiscard,
+    super.key,
+  });
+
+  final AlbumUpload upload;
+  final VoidCallback onRetry;
+  final VoidCallback onDiscard;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final tokens = context.tokens;
+    final preview = ExcludeSemantics(
+      child: Image.memory(
+        upload.preview,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (context, error, stackTrace) =>
+            ColoredBox(color: tokens.surfaceRaised),
+      ),
+    );
+    const scrim = ColoredBox(
+      color: Color(0x73000000), // photo-overlay
+    );
+    if (upload.failed) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Semantics(
+            button: true,
+            label: l10n.uploadFailedRetry,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onRetry,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  preview,
+                  scrim,
+                  const ExcludeSemantics(
+                    child: Center(
+                      child: Icon(
+                        Icons.refresh,
+                        color: Colors.white, // photo-overlay
                       ),
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: IconButton(
+              tooltip: l10n.discardUpload,
+              color: Colors.white, // photo-overlay
+              icon: const Icon(Icons.close),
+              onPressed: onDiscard,
+            ),
+          ),
+        ],
+      );
+    }
+    return Semantics(
+      label: l10n.uploadingPhoto,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          preview,
+          scrim,
+          ExcludeSemantics(
+            child: Center(
+              child: SizedBox.square(
+                dimension: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  value: upload.progress == 0 ? null : upload.progress,
+                  color: Colors.white, // photo-overlay
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

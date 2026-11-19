@@ -2157,6 +2157,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'breaking our community guidelines'**
   String get policyOther;
+
+  /// No description provided for @addPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'Add photos'**
+  String get addPhotos;
+
+  /// No description provided for @selectedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} selected'**
+  String selectedCount(int count);
+
+  /// No description provided for @clearSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel selection'**
+  String get clearSelection;
+
+  /// No description provided for @deletePhotosTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Delete this photo?} other{Delete {count} photos?}}'**
+  String deletePhotosTitle(int count);
+
+  /// No description provided for @deletePhotosBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This can\'t be undone.'**
+  String get deletePhotosBody;
+
+  /// No description provided for @uploadingPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading photo'**
+  String get uploadingPhoto;
+
+  /// No description provided for @uploadFailedRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload failed. Tap to retry'**
+  String get uploadFailedRetry;
+
+  /// No description provided for @discardUpload.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard upload'**
+  String get discardUpload;
+
+  /// No description provided for @photoPagePosition.
+  ///
+  /// In en, this message translates to:
+  /// **'{current} of {total}'**
+  String photoPagePosition(int current, int total);
 }
 
 class _AppLocalizationsDelegate

@@ -386,5 +386,17 @@
   "policyExplicitPhoto": "an explicit public photo",
   "policyThreat": "threats or violence",
   "policySpam": "spam or scams",
-  "policyOther": "breaking our community guidelines"
+  "policyOther": "breaking our community guidelines",
+  "addPhotos": "Add photos",
+  "selectedCount": "{count} selected",
+  "@selectedCount": {"placeholders": {"count": {"type": "int"}}},
+  "clearSelection": "Cancel selection",
+  "deletePhotosTitle": "{count, plural, =1{Delete this photo?} other{Delete {count} photos?}}",
+  "@deletePhotosTitle": {"placeholders": {"count": {"type": "int"}}},
+  "deletePhotosBody": "This can't be undone.",
+  "uploadingPhoto": "Uploading photo",
+  "uploadFailedRetry": "Upload failed. Tap to retry",
+  "discardUpload": "Discard upload",
+  "photoPagePosition": "{current} of {total}",
+  "@photoPagePosition": {"placeholders": {"current": {"type": "int"}, "total": {"type": "int"}}}
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbit/core/clock.dart';
@@ -14,8 +15,86 @@ final albumsProvider = NotifierProvider<AlbumsController, List<Album>>(
   AlbumsController.new,
 );
 
+/// A photo being added to an album: waiting its turn, uploading, or failed.
+class AlbumUpload {
+  /// Creates an upload tile state.
+  const AlbumUpload({
+    required this.localId,
+    required this.preview,
+    this.progress = 0,
+    this.failed = false,
+  });
+
+  /// Identifies the tile on this phone; not a server id.
+  final String localId;
+
+  /// The picked photo, shown while it uploads.
+  final Uint8List preview;
+
+  /// 0 while waiting or uploading, 0.5 once uploaded and being attached, 1
+  /// when attached.
+  final double progress;
+
+  /// The upload or the attach was refused; the tile offers a retry.
+  final bool failed;
+
+  /// A copy with [progress] and [failed] replaced.
+  AlbumUpload copyWith({double? progress, bool? failed}) => AlbumUpload(
+    localId: localId,
+    preview: preview,
+    progress: progress ?? this.progress,
+    failed: failed ?? this.failed,
+  );
+}
+
+/// Photos on their way into each album, by album id, in picked order.
+final albumUploadsProvider =
+    NotifierProvider<AlbumUploadsController, Map<String, List<AlbumUpload>>>(
+      AlbumUploadsController.new,
+    );
+
+/// Holds the upload tiles of albums being added to.
+class AlbumUploadsController extends Notifier<Map<String, List<AlbumUpload>>> {
+  @override
+  Map<String, List<AlbumUpload>> build() => const {};
+
+  /// The tiles of [albumId], oldest first.
+  List<AlbumUpload> of(String albumId) => state[albumId] ?? const [];
+
+  /// Appends [uploads] to [albumId].
+  void add(String albumId, List<AlbumUpload> uploads) => state = {
+    ...state,
+    albumId: [...of(albumId), ...uploads],
+  };
+
+  /// Replaces the tile [localId] of [albumId] with [change] applied.
+  void update(
+    String albumId,
+    String localId,
+    AlbumUpload Function(AlbumUpload) change,
+  ) => state = {
+    ...state,
+    albumId: [
+      for (final u in of(albumId))
+        if (u.localId == localId) change(u) else u,
+    ],
+  };
+
+  /// Drops the tile [localId] of [albumId].
+  void remove(String albumId, String localId) => state = {
+    ...state,
+    albumId: [
+      for (final u in of(albumId))
+        if (u.localId != localId) u,
+    ],
+  };
+}
+
 /// Holds albums and their sharing grants.
 class AlbumsController extends Notifier<List<Album>> {
+  final Map<String, PickedMedia> _picked = {};
+  int _nextTile = 0;
+
   AlbumRepository? get _api => ref.read(albumRepositoryProvider);
 
   @override
@@ -50,14 +129,74 @@ class AlbumsController extends Notifier<List<Album>> {
     return id;
   }
 
-  /// Uploads [photo] and adds it to [albumId] (API mode). Throws
-  /// [ApiException].
-  Future<void> addPhoto(String albumId, PickedMedia photo) async {
-    final uploaded = await ref
-        .read(mediaRepositoryProvider)!
-        .upload(MediaPurpose.albumPhoto, photo.bytes, photo.contentType);
-    await _api!.addPhoto(albumId, uploaded.id);
+  /// Uploads [photos] to [albumId] one at a time in the order given (API
+  /// mode), reporting each on [albumUploadsProvider]. A photo that fails
+  /// stays as a failed tile and the rest carry on.
+  Future<void> addPhotos(String albumId, List<PickedMedia> photos) async {
+    final uploads = ref.read(albumUploadsProvider.notifier);
+    final tiles = [
+      for (final photo in photos)
+        AlbumUpload(localId: 'upload-${_nextTile++}', preview: photo.bytes),
+    ];
+    for (final (i, tile) in tiles.indexed) {
+      _picked[tile.localId] = photos[i];
+    }
+    uploads.add(albumId, tiles);
+    for (final tile in tiles) {
+      if (!ref.mounted) return;
+      await _send(albumId, tile.localId);
+    }
+  }
+
+  /// Tries a failed upload of [albumId] again.
+  Future<void> retryUpload(String albumId, String localId) =>
+      _send(albumId, localId);
+
+  /// Drops the upload tile [localId] of [albumId] and its photo.
+  void discardUpload(String albumId, String localId) {
+    _picked.remove(localId);
+    ref.read(albumUploadsProvider.notifier).remove(albumId, localId);
+  }
+
+  Future<void> _send(String albumId, String localId) async {
+    final photo = _picked[localId];
+    if (photo == null) return;
+    final uploads = ref.read(albumUploadsProvider.notifier)
+      ..update(
+        albumId,
+        localId,
+        (u) => u.copyWith(progress: 0, failed: false),
+      );
+    try {
+      final uploaded = await ref
+          .read(mediaRepositoryProvider)!
+          .upload(MediaPurpose.albumPhoto, photo.bytes, photo.contentType);
+      if (!ref.mounted) return;
+      uploads.update(albumId, localId, (u) => u.copyWith(progress: 0.5));
+      await _api!.addPhoto(albumId, uploaded.id);
+    } on ApiException {
+      if (ref.mounted) {
+        uploads.update(albumId, localId, (u) => u.copyWith(failed: true));
+      }
+      return;
+    }
+    if (!ref.mounted) return;
+    _picked.remove(localId);
+    uploads.remove(albumId, localId);
     await load();
+  }
+
+  /// Removes [mediaIds] from [albumId] one by one (API mode). Stops at the
+  /// first refusal and throws it, after reloading what was removed. Throws
+  /// [ApiException].
+  Future<void> removePhotos(String albumId, List<String> mediaIds) async {
+    try {
+      for (final id in mediaIds) {
+        await _api!.removePhoto(albumId, id);
+      }
+    } finally {
+      if (ref.mounted) await load();
+    }
   }
 
   /// Shares [albumId] with [profileId], replacing any earlier grant. Throws

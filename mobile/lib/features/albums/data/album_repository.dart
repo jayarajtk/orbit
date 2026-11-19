@@ -90,6 +90,9 @@ abstract interface class AlbumRepository {
   /// Adds the user's uploaded photo [mediaId].
   Future<void> addPhoto(String albumId, String mediaId);
 
+  /// Removes the photo [mediaId] from [albumId].
+  Future<void> removePhoto(String albumId, String mediaId);
+
   /// Shares [albumId] with [profileId].
   Future<void> share(
     String albumId,
@@ -160,6 +163,11 @@ class ApiAlbumRepository implements AlbumRepository {
   Future<void> addPhoto(String albumId, String mediaId) => guardApi(
     () =>
         _dio.post<void>('/albums/$albumId/photos', data: {'mediaId': mediaId}),
+  );
+
+  @override
+  Future<void> removePhoto(String albumId, String mediaId) => guardApi(
+    () => _dio.delete<void>('/albums/$albumId/photos/$mediaId'),
   );
 
   @override

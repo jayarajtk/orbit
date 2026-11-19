@@ -7,7 +7,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbit/app/router.dart';
+import 'package:orbit/app/theme.dart';
 import 'package:orbit/core/network/api_client.dart';
+import 'package:orbit/core/widgets/media_image.dart';
+import 'package:orbit/core/widgets/photo_viewer.dart';
+import 'package:orbit/features/albums/data/album_repository.dart';
+import 'package:orbit/features/albums/presentation/album_screen.dart';
 import 'package:orbit/features/discovery/domain/profile.dart';
 import 'package:orbit/features/media/data/media_capture.dart';
 import 'package:orbit/features/media/data/media_repository.dart';
@@ -22,6 +27,7 @@ import 'package:orbit/l10n/app_localizations.dart';
 
 import '../helpers/fake_api.dart';
 import '../helpers/fake_image_cache.dart';
+import '../helpers/photo_bytes.dart';
 import '../helpers/pump_app.dart';
 
 class _CountingPicker implements MediaPicker {
@@ -153,6 +159,151 @@ Future<void> _openMyPhotos(WidgetTester tester, List<String> ids) async {
   await tester.tap(find.byType(MeAvatar));
   await tester.pumpAndSettle();
 }
+
+/// The album endpoints of the API, with the album's photo ids in memory.
+class _AlbumServer {
+  _AlbumServer(List<String> initial) : photoIds = [...initial] {
+    adapter = FakeAdapter(
+      const {},
+      handlers: {
+        'GET /albums': (_) => (
+          200,
+          [
+            {
+              'id': 'a1',
+              'name': 'Travel',
+              'photoCount': photoIds.length,
+              'grants': <Object?>[],
+            },
+          ],
+        ),
+        'GET /albums/a1': (_) => (
+          200,
+          {
+            'id': 'a1',
+            'ownerId': 'me',
+            'name': 'Travel',
+            'viewOnce': false,
+            'photos': [
+              for (final id in photoIds)
+                {
+                  'id': id,
+                  'links': {
+                    'url': 'http://x/$id',
+                    'thumbUrl': 'http://x/t$id',
+                    'expiresAt': '2030-01-01T00:00:00Z',
+                  },
+                },
+            ],
+          },
+        ),
+        'POST /albums/a1/photos': (options) {
+          photoIds.add((options.data as Map)['mediaId'] as String);
+          return (204, null);
+        },
+        for (final id in ['p1', 'p2', 'p3', 'm1', 'm2', 'm3'])
+          'DELETE /albums/a1/photos/$id': (_) {
+            photoIds.remove(id);
+            return (204, null);
+          },
+      },
+    );
+  }
+
+  final List<String> photoIds;
+  late final FakeAdapter adapter;
+
+  List<String> get deletes => [
+    for (final r in adapter.requests)
+      if (r.method == 'DELETE') r.path,
+  ];
+}
+
+/// Uploads that finish only when the test says so; [failFirst] refuses the
+/// first one.
+class _GatedUploads implements MediaRepository {
+  _GatedUploads({this.failFirst = false});
+
+  final bool failFirst;
+  final List<Completer<UploadedMedia>> calls = [];
+
+  @override
+  Future<UploadedMedia> upload(
+    MediaPurpose purpose,
+    Uint8List bytes,
+    String contentType, {
+    int? durationMs,
+  }) {
+    final call = Completer<UploadedMedia>();
+    calls.add(call);
+    if (failFirst && calls.length == 1) {
+      call.completeError(const ApiException(status: 500, type: 'server'));
+    }
+    return call.future;
+  }
+
+  void finish(int index) => calls[index].complete(
+    UploadedMedia(
+      id: 'm${index + 1}',
+      links: MediaLinks(
+        url: 'http://x/m${index + 1}',
+        expiresAt: DateTime.utc(2030),
+      ),
+    ),
+  );
+}
+
+class _ManyPicker implements MediaPicker {
+  _ManyPicker(this.count);
+
+  final int count;
+
+  @override
+  Future<PickedMedia?> pickPhoto({required bool camera}) async => null;
+
+  @override
+  Future<List<PickedMedia>> pickPhotos({int limit = 10}) async => [
+    for (var i = 0; i < count; i++)
+      PickedMedia(bytes: plainJpeg(), contentType: 'image/jpeg'),
+  ];
+
+  @override
+  Future<PickedMedia?> pickVideo({required Duration maxDuration}) async => null;
+}
+
+Future<void> _pumpAlbum(
+  WidgetTester tester,
+  _AlbumServer server, {
+  MediaRepository? uploads,
+  MediaPicker? picker,
+}) async {
+  tester.view.physicalSize = const Size(1170, 2532);
+  tester.view.devicePixelRatio = 3;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        albumRepositoryProvider.overrideWithValue(
+          ApiAlbumRepository(dioWith(server.adapter)),
+        ),
+        mediaRepositoryProvider.overrideWithValue(uploads ?? _NoUploads()),
+        mediaPickerProvider.overrideWithValue(picker ?? _ManyPicker(0)),
+        orbitImageCacheProvider.overrideWithValue(FakeImageCache()),
+      ],
+      child: MaterialApp(
+        theme: buildOrbitTheme(Brightness.light),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const AlbumScreen(albumId: 'a1'),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+Finder _albumTile(String id) => find.byKey(ValueKey('album-tile-$id'));
+
+Finder _uploadingTiles() => find.bySemanticsLabel('Uploading photo');
 
 void main() {
   testWidgets('editing the profile updates the Me tab', (tester) async {
@@ -486,5 +637,113 @@ void main() {
       find.widgetWithIcon(IconButton, Icons.delete_outline),
     );
     expect(again.onPressed, isNotNull);
+  });
+
+  group('album photos', () {
+    testWidgets('adding three photos shows three progress tiles then three '
+        'photos', (tester) async {
+      final server = _AlbumServer([]);
+      final uploads = _GatedUploads();
+      await _pumpAlbum(
+        tester,
+        server,
+        uploads: uploads,
+        picker: _ManyPicker(3),
+      );
+
+      await tester.tap(find.text('Add photos'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(_uploadingTiles(), findsNWidgets(3));
+      expect(uploads.calls, hasLength(1));
+
+      for (var i = 0; i < 3; i++) {
+        uploads.finish(i);
+        // The next tile's spinner never settles, so pump a fixed few frames.
+        for (var frame = 0; frame < 5; frame++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(_uploadingTiles(), findsNWidgets(2 - i));
+      }
+
+      expect(uploads.calls, hasLength(3));
+      expect(server.photoIds, ['m1', 'm2', 'm3']);
+      expect(_albumTile('m1'), findsOneWidget);
+      expect(_albumTile('m2'), findsOneWidget);
+      expect(_albumTile('m3'), findsOneWidget);
+    });
+
+    testWidgets('a failed upload tile offers retry', (tester) async {
+      final server = _AlbumServer([]);
+      final uploads = _GatedUploads(failFirst: true);
+      await _pumpAlbum(
+        tester,
+        server,
+        uploads: uploads,
+        picker: _ManyPicker(1),
+      );
+
+      await tester.tap(find.text('Add photos'));
+      await tester.pumpAndSettle();
+
+      final retry = find.bySemanticsLabel('Upload failed. Tap to retry');
+      expect(retry, findsOneWidget);
+      expect(server.photoIds, isEmpty);
+
+      await tester.tap(retry);
+      await tester.pump();
+      await tester.pump();
+      uploads.finish(1);
+      await tester.pumpAndSettle();
+
+      expect(retry, findsNothing);
+      expect(server.photoIds, ['m2']);
+      expect(_albumTile('m2'), findsOneWidget);
+    });
+
+    testWidgets('long-press selects photos and deletes them', (tester) async {
+      final server = _AlbumServer(['p1', 'p2', 'p3']);
+      await _pumpAlbum(tester, server);
+
+      await tester.longPress(_albumTile('p1'));
+      await tester.pumpAndSettle();
+      expect(find.text('1 selected'), findsOneWidget);
+
+      await tester.tap(_albumTile('p3'));
+      await tester.pumpAndSettle();
+      expect(find.text('2 selected'), findsOneWidget);
+      expect(find.byType(PhotoViewer), findsNothing);
+
+      await tester.tap(find.byTooltip('Delete'));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete 2 photos?'), findsOneWidget);
+      expect(server.deletes, isEmpty);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+      await tester.pumpAndSettle();
+
+      expect(server.deletes, [
+        '/albums/a1/photos/p1',
+        '/albums/a1/photos/p3',
+      ]);
+      expect(find.text('2 selected'), findsNothing);
+      expect(_albumTile('p1'), findsNothing);
+      expect(_albumTile('p2'), findsOneWidget);
+    });
+
+    testWidgets('tapping an album photo opens the viewer at that photo', (
+      tester,
+    ) async {
+      final server = _AlbumServer(['p1', 'p2', 'p3']);
+      await _pumpAlbum(tester, server);
+
+      await tester.tap(_albumTile('p2'));
+      await tester.pumpAndSettle();
+
+      final viewer = tester.widget<PhotoViewer>(find.byType(PhotoViewer));
+      expect(viewer.initialIndex, 1);
+      expect(viewer.items.map((i) => i.mediaId), ['p1', 'p2', 'p3']);
+    });
   });
 }

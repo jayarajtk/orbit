@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:orbit/app/theme.dart';
 import 'package:orbit/core/widgets/glass_icon_button.dart';
 import 'package:orbit/core/widgets/media_image.dart';
+import 'package:orbit/core/widgets/photo_viewer.dart';
 import 'package:orbit/core/widgets/profile_avatar.dart';
 import 'package:orbit/core/widgets/skeleton.dart';
 import 'package:orbit/features/chat/domain/conversation.dart';
@@ -45,6 +46,34 @@ class _PhotoAddedRepository extends FakeProfileRepository {
 
   @override
   Future<Profile?> byId(String id) async => _alex(2);
+}
+
+/// Serves Alex with two real photos.
+class _PhotosRepository extends FakeProfileRepository {
+  _PhotosRepository() : super(latency: Duration.zero);
+
+  static Profile _alex() => Profile(
+    id: dummyProfiles.first.id,
+    name: dummyProfiles.first.name,
+    age: dummyProfiles.first.age,
+    distanceKm: dummyProfiles.first.distanceKm,
+    online: true,
+    bio: dummyProfiles.first.bio,
+    lookingFor: dummyProfiles.first.lookingFor,
+    tags: dummyProfiles.first.tags,
+    photoCount: 2,
+    isNew: false,
+    photos: const [
+      ProfilePhoto(id: 'ph1', url: 'http://x/ph1'),
+      ProfilePhoto(id: 'ph2', url: 'http://x/ph2'),
+    ],
+  );
+
+  @override
+  Future<List<Profile>> nearby(DiscoveryFilters filters) async => [_alex()];
+
+  @override
+  Future<Profile?> byId(String id) async => _alex();
 }
 
 /// Counts grid loads and, while [gate] is set, holds them open.
@@ -148,6 +177,50 @@ void main() {
       find.bySemanticsLabel(AppLocalizationsEn().photoOf(1, 2)),
       findsOneWidget,
     );
+  });
+
+  testWidgets('profile shows one segment per photo and advances on tap', (
+    tester,
+  ) async {
+    await pumpOrbit(tester, profiles: _PhotoAddedRepository());
+    await onboard(tester);
+    await tapText(tester, 'Alex 27');
+
+    expect(find.byKey(const ValueKey('photo-segment-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('photo-segment-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('photo-segment-2')), findsNothing);
+    expect(find.bySemanticsLabel('1 of 2'), findsOneWidget);
+
+    final size = tester.view.physicalSize / tester.view.devicePixelRatio;
+    await tester.tapAt(Offset(size.width - 20, 250));
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsLabel('2 of 2'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel(AppLocalizationsEn().photoOf(2, 2)),
+      findsOneWidget,
+    );
+
+    await tester.tapAt(const Offset(20, 250));
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsLabel('1 of 2'), findsOneWidget);
+  });
+
+  testWidgets('tapping the middle of a profile photo opens the viewer', (
+    tester,
+  ) async {
+    await pumpOrbit(tester, profiles: _PhotosRepository());
+    await onboard(tester);
+    await tapText(tester, 'Alex 27');
+
+    final size = tester.view.physicalSize / tester.view.devicePixelRatio;
+    await tester.tapAt(Offset(size.width / 2, 250));
+    await tester.pumpAndSettle();
+
+    final viewer = tester.widget<PhotoViewer>(find.byType(PhotoViewer));
+    expect(viewer.initialIndex, 0);
+    expect(viewer.items.map((i) => i.mediaId), ['ph1', 'ph2']);
   });
 
   testWidgets('profile app bar buttons sit on glass backings', (tester) async {
