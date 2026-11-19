@@ -41,6 +41,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -49,6 +50,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureRestTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
@@ -56,12 +58,14 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -74,7 +78,8 @@ import tools.jackson.databind.json.JsonMapper;
   MutableClock.Config.class,
   CountingDataSource.Config.class,
   StatusIntegrationTests.ExpiryRecorder.class,
-  StatusIntegrationTests.ScannerConfig.class
+  StatusIntegrationTests.ScannerConfig.class,
+  StatusIntegrationTests.FailingPush.class
 })
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureRestTestClient
@@ -101,6 +106,9 @@ class StatusIntegrationTests {
   @Autowired MeterRegistry meters;
   @Autowired ExpiryRecorder expiries;
   @Autowired AtomicReference<MediaScanner.Verdict> verdict;
+  @Autowired FailingPush failingPush;
+  @Autowired ApplicationEventPublisher events;
+  @Autowired TransactionTemplate transactions;
 
   private final Map<String, String> ids = new HashMap<>();
 
@@ -139,6 +147,34 @@ class StatusIntegrationTests {
     }
   }
 
+  /** An event of another module, standing in for a chat message that triggers a push. */
+  public record MessagePushed(UUID messageId) {}
+
+  /**
+   * A push listener whose provider is down: every call fails, like a device that never accepts a
+   * push. Pushes are not idempotent, so the resubmission job must never replay it.
+   */
+  @TestConfiguration(proxyBeanMethods = false)
+  static class FailingPush {
+
+    private final AtomicInteger calls = new AtomicInteger();
+
+    @Async
+    @TransactionalEventListener
+    void on(MessagePushed event) {
+      calls.incrementAndGet();
+      throw new IllegalStateException("push provider down");
+    }
+
+    int calls() {
+      return calls.get();
+    }
+
+    void reset() {
+      calls.set(0);
+    }
+  }
+
   @BeforeEach
   void setUp() {
     for (String table :
@@ -153,6 +189,7 @@ class StatusIntegrationTests {
       jdbc.sql("DELETE FROM " + table).update();
     }
     expiries.events().clear();
+    failingPush.reset();
     verdict.set(MediaScanner.Verdict.CLEAN);
     clock.set(START);
     given(jwtDecoder.decode(anyString()))
@@ -773,6 +810,42 @@ class StatusIntegrationTests {
             assertThat(incompletePublications(PURGER)).isZero();
             assertThat(storage.size(key)).isEmpty();
             assertThat(mediaRows(mediaId)).isZero();
+          });
+    }
+
+    @Test
+    void resubmissionJobRetriesOnlyStatusPurges() throws Exception {
+      String mediaId = photo("alice", "STATUS_PHOTO");
+      postStatus("alice", mediaId, null).expectStatus().isCreated();
+      doThrow(new IllegalStateException("storage down"))
+          .doCallRealMethod()
+          .when(storage)
+          .delete(any());
+      clearInvocations(storage);
+      transactions.executeWithoutResult(
+          tx -> events.publishEvent(new MessagePushed(UUID.randomUUID())));
+      clock.advance(Duration.ofHours(24).plusSeconds(1));
+      assertThat(reaper.reap()).isOne();
+      await()
+          .atMost(EVENT_WAIT)
+          .untilAsserted(() -> {
+            assertThat(failingPush.calls()).isOne();
+            assertThat(incompletePublications("FailingPush")).isOne();
+            assertThat(incompletePublications(PURGER)).isOne();
+          });
+
+      clock.advance(Duration.ofMinutes(10));
+      resubmission.run();
+
+      await()
+          .atMost(EVENT_WAIT)
+          .untilAsserted(() -> assertThat(incompletePublications(PURGER)).isZero());
+      await()
+          .during(Duration.ofSeconds(1))
+          .atMost(EVENT_WAIT)
+          .untilAsserted(() -> {
+            assertThat(failingPush.calls()).isOne();
+            assertThat(incompletePublications("FailingPush")).isOne();
           });
     }
 
