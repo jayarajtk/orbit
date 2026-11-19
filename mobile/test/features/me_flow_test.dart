@@ -13,20 +13,27 @@ import 'package:orbit/features/media/data/media_repository.dart';
 import 'package:orbit/features/media/domain/media.dart';
 import 'package:orbit/features/profile/data/account_repository.dart';
 import 'package:orbit/features/profile/domain/my_profile.dart';
+import 'package:orbit/features/profile/presentation/me_screen.dart';
 import 'package:orbit/features/profile/presentation/my_photos_actions.dart';
+import 'package:orbit/features/profile/presentation/my_photos_viewer.dart';
 import 'package:orbit/features/profile/presentation/my_profile_controller.dart';
+import 'package:orbit/l10n/app_localizations.dart';
 
 import '../helpers/fake_api.dart';
 import '../helpers/fake_image_cache.dart';
 import '../helpers/pump_app.dart';
 
 class _CountingPicker implements MediaPicker {
+  _CountingPicker({this.result});
+
+  /// What the member "picks"; null means they cancelled.
+  final PickedMedia? result;
   int calls = 0;
 
   @override
   Future<PickedMedia?> pickPhoto({required bool camera}) async {
     calls++;
-    return null;
+    return result;
   }
 
   @override
@@ -44,6 +51,16 @@ class _NoUploads implements MediaRepository {
     String contentType, {
     int? durationMs,
   }) => throw StateError('no upload expected');
+}
+
+class _RefusedUploads implements MediaRepository {
+  @override
+  Future<Never> upload(
+    MediaPurpose purpose,
+    Uint8List bytes,
+    String contentType, {
+    int? durationMs,
+  }) => throw const ApiException(status: 500, type: 'server');
 }
 
 /// Demo onboarding, but `PUT /me/photos` goes to the fake API.
@@ -89,9 +106,13 @@ FakeAdapter _photosApi({int status = 200}) => FakeAdapter(
   },
 );
 
-List<Override> _photoOverrides(FakeAdapter adapter, _CountingPicker picker) => [
+List<Override> _photoOverrides(
+  FakeAdapter adapter,
+  _CountingPicker picker, {
+  MediaRepository? uploads,
+}) => [
   accountRepositoryProvider.overrideWithValue(_DemoWithPhotosApi(adapter)),
-  mediaRepositoryProvider.overrideWithValue(_NoUploads()),
+  mediaRepositoryProvider.overrideWithValue(uploads ?? _NoUploads()),
   mediaPickerProvider.overrideWithValue(picker),
 ];
 
@@ -103,6 +124,18 @@ Future<void> _openEditProfile(WidgetTester tester) async {
   _container(tester).read(myProfileProvider.notifier).save(_profileWith(_ids));
   await tapText(tester, 'Me');
   await tapText(tester, 'Edit profile');
+}
+
+Future<void> _openMeWith(WidgetTester tester, List<String> ids) async {
+  await onboard(tester);
+  _container(tester).read(myProfileProvider.notifier).save(_profileWith(ids));
+  await tapText(tester, 'Me');
+}
+
+Future<void> _openMyPhotos(WidgetTester tester, List<String> ids) async {
+  await _openMeWith(tester, ids);
+  await tester.tap(find.byType(MeAvatar));
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -285,5 +318,118 @@ void main() {
     expect((put.data as Map)['mediaIds'], ['b', 'a', 'c']);
     final photos = _container(tester).read(myProfileProvider)!.photos;
     expect([for (final p in photos) p.id], ['b', 'a', 'c']);
+  });
+
+  testWidgets('tapping my avatar opens my photos', (tester) async {
+    await pumpOrbit(
+      tester,
+      overrides: _photoOverrides(_photosApi(), _CountingPicker()),
+    );
+    await _openMyPhotos(tester, ['a', 'b']);
+
+    expect(find.byType(MyPhotosViewer), findsOneWidget);
+    expect(find.text('1 / 2'), findsOneWidget);
+  });
+
+  testWidgets('tapping my avatar with no photos opens the picker', (
+    tester,
+  ) async {
+    final picker = _CountingPicker();
+    await pumpOrbit(tester, overrides: _photoOverrides(_photosApi(), picker));
+    await _openMyPhotos(tester, []);
+
+    expect(picker.calls, 1);
+    expect(find.byType(MyPhotosViewer), findsNothing);
+  });
+
+  testWidgets('the add-status badge is labelled and hidden without a handler', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: _photoOverrides(_photosApi(), _CountingPicker()),
+    );
+    addTearDown(container.dispose);
+    container.read(myProfileProvider.notifier).save(_profileWith(['a']));
+
+    Future<void> pumpAvatar(MeAvatar avatar) => tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(body: avatar),
+        ),
+      ),
+    );
+
+    await pumpAvatar(MeAvatar(onAddStatus: () {}));
+    expect(find.byTooltip('Add a status'), findsOneWidget);
+
+    await pumpAvatar(const MeAvatar());
+    expect(find.byTooltip('Add a status'), findsNothing);
+  });
+
+  testWidgets('make main from the viewer saves the new order', (tester) async {
+    final adapter = _photosApi();
+    await pumpOrbit(
+      tester,
+      overrides: _photoOverrides(adapter, _CountingPicker()),
+    );
+    await _openMyPhotos(tester, ['a', 'b']);
+    await tester.drag(find.byType(PageView), const Offset(-600, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('2 / 2'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Make main photo'));
+    await tester.pumpAndSettle();
+
+    final put = adapter.requests.singleWhere((r) => r.method == 'PUT');
+    expect((put.data as Map)['mediaIds'], ['b', 'a']);
+    expect(find.text('1 / 2'), findsOneWidget);
+    expect(find.byTooltip('Make main photo'), findsNothing);
+  });
+
+  testWidgets('deleting my only photo warns first', (tester) async {
+    final adapter = _photosApi();
+    await pumpOrbit(
+      tester,
+      overrides: _photoOverrides(adapter, _CountingPicker()),
+    );
+    await _openMyPhotos(tester, ['a']);
+
+    await tester.tap(find.byTooltip('Delete photo'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('This is your only photo'), findsOneWidget);
+    expect(adapter.requests.where((r) => r.method == 'PUT'), isEmpty);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    final put = adapter.requests.singleWhere((r) => r.method == 'PUT');
+    expect((put.data as Map)['mediaIds'], <Object?>[]);
+    expect(find.byType(MyPhotosViewer), findsNothing);
+  });
+
+  testWidgets('a failed replace shows an error and keeps the photo', (
+    tester,
+  ) async {
+    final adapter = _photosApi();
+    final picker = _CountingPicker(
+      result: PickedMedia(bytes: Uint8List(3), contentType: 'image/jpeg'),
+    );
+    await pumpOrbit(
+      tester,
+      overrides: _photoOverrides(adapter, picker, uploads: _RefusedUploads()),
+    );
+    await _openMyPhotos(tester, ['a', 'b']);
+
+    await tester.tap(find.byTooltip('Replace photo'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining("Couldn't reach Orbit"), findsOneWidget);
+    expect(find.byType(MyPhotosViewer), findsOneWidget);
+    expect(find.text('1 / 2'), findsOneWidget);
+    expect(adapter.requests.where((r) => r.method == 'PUT'), isEmpty);
+    final photos = _container(tester).read(myProfileProvider)!.photos;
+    expect([for (final p in photos) p.id], ['a', 'b']);
   });
 }

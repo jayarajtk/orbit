@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:orbit/app/router.dart';
+import 'package:orbit/core/network/api_client.dart';
 import 'package:orbit/core/widgets/profile_avatar.dart';
+import 'package:orbit/features/media/data/media_capture.dart';
 import 'package:orbit/features/plus/presentation/plus_controller.dart';
+import 'package:orbit/features/profile/presentation/my_photos_actions.dart';
 import 'package:orbit/features/profile/presentation/my_profile_controller.dart';
 import 'package:orbit/l10n/app_localizations.dart';
 
@@ -45,13 +48,8 @@ class MeScreen extends ConsumerWidget {
         children: [
           Row(
             children: [
-              ProfileAvatar(
-                name: me.displayName,
-                seed: 'me',
-                size: 84,
-                photoUrl: me.photos.isEmpty ? null : me.photos.first.thumbUrl,
-                mediaId: me.photos.isEmpty ? null : me.photos.first.id,
-              ),
+              // Posting a status arrives with the status feature.
+              MeAvatar(onAddStatus: () {}),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -107,6 +105,97 @@ class MeScreen extends ConsumerWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Hero tag shared by the avatar and the first page of the photo viewer.
+const myMainPhotoHeroTag = 'my-main-photo';
+
+/// The member's own picture. Tapping it opens their photos full screen, or
+/// the picker when they have none. A "+" badge starts a status when
+/// [onAddStatus] is set.
+class MeAvatar extends ConsumerWidget {
+  /// Creates the avatar.
+  const MeAvatar({this.onAddStatus, super.key});
+
+  /// Called when the "+" badge is tapped; the badge is hidden when null.
+  final VoidCallback? onAddStatus;
+
+  static const _size = 84.0;
+  static const _badge = 32.0;
+
+  Future<void> _addFirstPhoto(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final picked = await ref.read(mediaPickerProvider).pickPhoto(camera: false);
+    if (picked == null) return;
+    try {
+      await ref.read(myPhotosActionsProvider).add(picked);
+    } on ApiException catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            e.status == 422 ? l10n.uploadFailed : l10n.actionFailed,
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final me = ref.watch(myProfileProvider);
+    if (me == null) return const SizedBox.shrink();
+    final main = me.photos.isEmpty ? null : me.photos.first;
+    final onAddStatus = this.onAddStatus;
+    return SizedBox.square(
+      dimension: _size + _badge / 2,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 0,
+            top: 0,
+            child: Semantics(
+              button: true,
+              label: main == null ? l10n.photoAdd : l10n.openMyPhotos,
+              excludeSemantics: true,
+              child: GestureDetector(
+                onTap: () => main == null
+                    ? _addFirstPhoto(context, ref)
+                    : context.push('${AppRoutes.myPhotos}?index=0'),
+                child: Hero(
+                  tag: myMainPhotoHeroTag,
+                  child: ProfileAvatar(
+                    name: me.displayName,
+                    seed: 'me',
+                    size: _size,
+                    photoUrl: main?.thumbUrl,
+                    mediaId: main?.id,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (onAddStatus != null)
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: IconButton.filled(
+                tooltip: l10n.addStatusTooltip,
+                iconSize: 18,
+                constraints: const BoxConstraints.tightFor(
+                  width: _badge,
+                  height: _badge,
+                ),
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.add),
+                onPressed: onAddStatus,
+              ),
+            ),
         ],
       ),
     );

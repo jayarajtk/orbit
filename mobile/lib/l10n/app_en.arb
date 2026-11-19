@@ -285,6 +285,8 @@
   "addPhoto": "Add photo",
   "removePhoto": "Remove photo",
   "photoAdd": "Add photo",
+  "openMyPhotos": "Open my photos",
+  "addStatusTooltip": "Add a status",
   "photoMain": "Main",
   "photoMakeMain": "Make main photo",
   "photoReplace": "Replace photo",

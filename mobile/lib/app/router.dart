@@ -19,6 +19,7 @@ import 'package:orbit/features/plus/presentation/orbit_plus_screen.dart';
 import 'package:orbit/features/profile/presentation/edit_profile_screen.dart';
 import 'package:orbit/features/profile/presentation/favorites_screen.dart';
 import 'package:orbit/features/profile/presentation/me_screen.dart';
+import 'package:orbit/features/profile/presentation/my_photos_viewer.dart';
 import 'package:orbit/features/profile/presentation/my_profile_controller.dart';
 import 'package:orbit/features/safety/presentation/blocked_users_screen.dart';
 import 'package:orbit/features/safety/presentation/safety_centre_screen.dart';
@@ -196,9 +197,32 @@ final routerProvider = Provider<GoRouter>((ref) {
                   ),
                   GoRoute(
                     path: 'photos',
-                    // Placeholder until the full-screen viewer replaces it.
-                    builder: (context, state) =>
-                        const Scaffold(body: SizedBox.shrink()),
+                    pageBuilder: (context, state) => CustomTransitionPage<void>(
+                      key: state.pageKey,
+                      opaque: false,
+                      fullscreenDialog: true,
+                      transitionDuration: const Duration(milliseconds: 250),
+                      reverseTransitionDuration: const Duration(
+                        milliseconds: 250,
+                      ),
+                      child: MyPhotosViewer(
+                        initialIndex:
+                            int.tryParse(
+                              state.uri.queryParameters['index'] ?? '',
+                            ) ??
+                            0,
+                      ),
+                      transitionsBuilder:
+                          (context, animation, secondaryAnimation, child) =>
+                              MediaQuery.disableAnimationsOf(context)
+                              ? child
+                              : FadeTransition(
+                                  opacity: animation.drive(
+                                    CurveTween(curve: Curves.easeOut),
+                                  ),
+                                  child: child,
+                                ),
+                    ),
                   ),
                   GoRoute(
                     path: 'albums',

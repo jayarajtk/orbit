@@ -867,6 +867,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get photoAdd => 'Add photo';
 
   @override
+  String get openMyPhotos => 'Open my photos';
+
+  @override
+  String get addStatusTooltip => 'Add a status';
+
+  @override
   String get photoMain => 'Main';
 
   @override

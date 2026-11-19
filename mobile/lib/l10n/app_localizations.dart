@@ -1618,6 +1618,18 @@ abstract class AppLocalizations {
   /// **'Add photo'**
   String get photoAdd;
 
+  /// No description provided for @openMyPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'Open my photos'**
+  String get openMyPhotos;
+
+  /// No description provided for @addStatusTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a status'**
+  String get addStatusTooltip;
+
   /// No description provided for @photoMain.
   ///
   /// In en, this message translates to:
