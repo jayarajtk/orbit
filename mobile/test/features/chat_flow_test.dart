@@ -27,6 +27,7 @@ import 'package:orbit/features/media/data/media_repository.dart';
 import 'package:orbit/features/media/domain/media.dart';
 import 'package:orbit/l10n/app_localizations.dart';
 
+import '../app/theme_test.dart' show contrastRatio;
 import '../helpers/fake_chat_gateway.dart';
 import '../helpers/pump_app.dart';
 
@@ -421,6 +422,52 @@ final Finder _firstMosaicTile = find
     .first;
 
 void main() {
+  testWidgets('the Inbox delete icon stands out after a live switch to dark', (
+    tester,
+  ) async {
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    await pumpOrbit(tester);
+    await onboard(tester);
+    await tapText(tester, 'Inbox');
+
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+    await tester.pumpAndSettle();
+
+    // Swipe part way, so the delete background shows without deleting.
+    final swipe = await tester.startGesture(
+      tester.getCenter(find.byType(Dismissible).first),
+    );
+    await swipe.moveBy(const Offset(-30, 0));
+    await swipe.moveBy(const Offset(-120, 0));
+    await tester.pump();
+
+    final fill = buildOrbitTheme(Brightness.dark).colorScheme.errorContainer;
+    final background = tester.widget<Container>(
+      find
+          .ancestor(
+            of: find.byIcon(Icons.delete_outline),
+            matching: find.byType(Container),
+          )
+          .first,
+    );
+    expect(background.color, fill);
+    final glyph = tester.widget<RichText>(
+      find.descendant(
+        of: find.byIcon(Icons.delete_outline),
+        matching: find.byType(RichText),
+      ),
+    );
+    // WCAG 1.4.11: icons need 3:1 against what is behind them.
+    expect(
+      contrastRatio(glyph.text.style!.color!, fill),
+      greaterThanOrEqualTo(3),
+    );
+
+    await swipe.up();
+    await tester.pumpAndSettle();
+  });
+
   group('chatItems', () {
     test('three consecutive waves from one sender become one run', () {
       final waves = [_wave('a'), _wave('b'), _wave('c')];

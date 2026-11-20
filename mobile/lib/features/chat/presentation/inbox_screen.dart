@@ -47,6 +47,10 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // Read here, not in `itemBuilder`: the builder's context belongs to the
+    // list, so rows built from it keep the old colours after a live switch
+    // between light and dark mode.
+    final scheme = Theme.of(context).colorScheme;
     final favorites = ref.watch(favoritesProvider);
     final profiles = ref.watch(profilesByIdProvider);
     final conversations = [
@@ -116,8 +120,11 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                   background: Container(
                     alignment: AlignmentDirectional.centerEnd,
                     padding: const EdgeInsets.symmetric(horizontal: 24),
-                    color: Theme.of(context).colorScheme.errorContainer,
-                    child: const Icon(Icons.delete_outline),
+                    color: scheme.errorContainer,
+                    child: Icon(
+                      Icons.delete_outline,
+                      color: scheme.onErrorContainer,
+                    ),
                   ),
                   onDismissed: (_) => _delete(c, name),
                   child: _ConversationTile(
