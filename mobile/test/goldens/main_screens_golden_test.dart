@@ -1,5 +1,6 @@
-// Pixel-exact images made on macOS; Linux anti-aliases text differently,
-// so CI runs this tag on a macOS runner only.
+// Images made on macOS. Linux anti-aliases text differently (up to 3.3% of
+// pixels), so CI runs this tag on a macOS runner only, where
+// flutter_test_config.dart allows 0.5%.
 @Tags(['golden'])
 library;
 
