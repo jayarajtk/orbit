@@ -168,6 +168,10 @@ class _FreshFaces extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final seen = ref.watch(seenStatusOwnersProvider);
+    // Read here, not in `itemBuilder`: the builder's context belongs to the
+    // list, so items built from it keep the old colours after a live switch
+    // between light and dark mode.
+    final textTheme = Theme.of(context).textTheme;
     return SizedBox(
       height: 100,
       child: ListView.separated(
@@ -180,7 +184,7 @@ class _FreshFaces extends ConsumerWidget {
             return Center(
               child: Text(
                 l10n.freshFaces,
-                style: Theme.of(context).textTheme.labelLarge,
+                style: textTheme.labelLarge,
               ),
             );
           }
@@ -221,7 +225,7 @@ class _FreshFaces extends ConsumerWidget {
                   ExcludeSemantics(
                     child: Text(
                       profile.name,
-                      style: Theme.of(context).textTheme.labelSmall,
+                      style: textTheme.labelSmall,
                     ),
                   ),
                 ],

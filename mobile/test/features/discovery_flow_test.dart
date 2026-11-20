@@ -277,6 +277,34 @@ void main() {
     });
   }
 
+  testWidgets('Fresh faces text follows a live switch to dark mode', (
+    tester,
+  ) async {
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    await pumpOrbit(tester);
+    await onboard(tester);
+
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+    await tester.pumpAndSettle();
+
+    final dark = buildOrbitTheme(Brightness.dark).extension<OrbitTokens>()!;
+    final freshFaces = find.ancestor(
+      of: find.text('Fresh faces'),
+      matching: find.byType(ListView),
+    );
+    final labels = find.descendant(
+      of: freshFaces,
+      matching: find.byType(RichText),
+    );
+    expect(labels, findsWidgets);
+    for (final label in tester.widgetList<RichText>(labels)) {
+      final text = label.text.toPlainText();
+      if (text.trim().length < 2) continue; // Avatar initials sit on a fill.
+      expect(label.text.style?.color, dark.text, reason: text);
+    }
+  });
+
   testWidgets('a screen reader opens the viewer from a profile photo', (
     tester,
   ) async {
