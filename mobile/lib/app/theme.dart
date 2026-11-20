@@ -301,8 +301,10 @@ ThemeData buildOrbitTheme(Brightness brightness) {
       bodyMedium: TextStyle(fontSize: 17),
       bodySmall: TextStyle(fontSize: 15),
     ),
-    listTileTheme: const ListTileThemeData(
-      subtitleTextStyle: TextStyle(fontSize: 15),
+    listTileTheme: ListTileThemeData(
+      // An enabled tile takes the subtitle colour from this style alone, so
+      // without one iOS draws the text white.
+      subtitleTextStyle: TextStyle(fontSize: 15, color: tokens.textMuted),
     ),
     navigationBarTheme: NavigationBarThemeData(
       // The frosted `GlassBar` supplies the fill, so the bar is clear.
