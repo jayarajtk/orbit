@@ -45,4 +45,27 @@ jobs:
       - run: flutter pub get
       - run: dart format --set-exit-if-changed lib test
       - run: flutter analyze
-      - run: flutter test --coverage
+      # Goldens run in mobile-goldens: they were made on macOS and text
+      # anti-aliasing differs on Linux.
+      - run: flutter test --coverage --exclude-tags golden
+
+  mobile-goldens:
+    name: Mobile goldens (macOS)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.5'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter test --tags golden
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-failures
+          path: mobile/test/goldens/failures/

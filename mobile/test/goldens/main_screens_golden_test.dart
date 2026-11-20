@@ -1,3 +1,8 @@
+// Pixel-exact images made on macOS; Linux anti-aliases text differently,
+// so CI runs this tag on a macOS runner only.
+@Tags(['golden'])
+library;
+
 import 'dart:io';
 import 'dart:ui' as ui;
 
